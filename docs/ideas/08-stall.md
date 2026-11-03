@@ -62,6 +62,23 @@ W 50 repo: jeden projekt głosowy (VoiceBridge, dostępność dla kupujących) i
 - Czy PayPal jest realny dla straganu w Polsce? → produkt jest globalny (USA, UK, Meksyk, Indie, Filipiny, Nigeria), a Zettle to produkcyjna ścieżka; w pitchu pokazać mapę.
 - Mniej "kosmiczne" niż HireHuman; wygrywa prostotą, impactem i głębią użycia Invoicing.
 
+## Wersja USA ("Stall na sterydach", kierunek wybrany 3 XI)
+
+Bohater: **food truck / stoisko na farmers market w USA**, paragon $8–40, właściciel często imigrant (ok. 1/3 restauracji i food trucków w USA prowadzą imigranci), język hiszpański / wietnamski / koreański / angielski. Klienci coraz częściej bez gotówki; Venmo i PayPal już wiszą na naklejkach przy kasach, ale bez pozycji, podatku, napiwku i ewidencji.
+
+Co dochodzi ponad wersję bazową:
+
+1. **Podatek od sprzedaży per lokalizacja**: food truck jeździ między miastami, a w USA jest 11 000+ jurysdykcji podatkowych; agent bierze GPS i stawkę (API Avalara/TaxJar w trybie sandbox lub własna tabela stanów na demo) i dolicza do faktury. To jest ból, którego nie rozwiązuje naklejka z Venmo.
+2. **Napiwek** na fakturze (pozycja "tip", AI proponuje 15/18/20%).
+3. **Venmo jako metoda płatności** (Venmo należy do PayPala i liczy się w regulaminie): przycisk Venmo w JS SDK v6 dla płatności z QR, tam gdzie sandbox pozwala.
+4. **Tryb wieczorny (autonomia)**: agent sam uzgadnia dzień, wypłaca pomocnikom i dostawcom przez **Payouts** (prep cook płacony tego samego dnia, nie w piątek), wystawia **faktury cykliczne** klientom hurtowym (restauracja biorąca produkty co tydzień), goni niezapłacone, proponuje zakupy na jutro i prognozę dnia (pogoda + historia). To jest część "agentic commerce": agent transakcjonuje bez polecenia.
+5. **Ewidencja pod 1099-K / Schedule C**: eksport miesięczny, kategorie, który jest czytelny dla księgowego.
+6. **"Dlaczego nie Zettle / Square"**: oba wymagają czytnika, menu i klikania; Stall to telefon, głos i język właściciela; obsługuje też tych, którzy nie mają konta firmowego ani terminala.
+
+Pitch po angielsku, demo w dwóch językach (angielski + hiszpański), jeden wtręt po polsku jako dowód, że działa w każdym języku.
+
+Nazwa robocza: Stall. Alternatywy do rozważenia: Tally, Booth, Counter.
+
 ## Zakres MVP (5 dni)
 
 - D1: głos → pozycje (ASR + parser), katalog.

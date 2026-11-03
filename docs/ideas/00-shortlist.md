@@ -31,7 +31,9 @@ Zasada doboru: pomysł musi (1) nie istnieć w 50 przebadanych repo ani w blogow
 
 ## Rekomendacja
 
-**Buduj HireHuman** (pomysł 1), a dashboard zadań zrób w AG Grid.
+> **Korekta 3 XI (wieczór):** HireHuman ma bezpośredniego, dużego konkurenta: **RentAHuman** (YC S26, start luty 2026, REST + MCP, 500k+ zarejestrowanych ludzi). Jury zada pytanie "czym to się różni od RentAHuman", a odpowiedź "PayPal Payouts zamiast ich wypłat" nie wystarczy na "Innovation". **HireHuman spada z rekomendacji.** Aktualna rekomendacja: **Stall w wersji wzmocnionej na rynek USA** (patrz `08-stall.md`, sekcja "Wersja USA"). Pierwotna rekomendacja poniżej zostaje dla historii.
+
+~~**Buduj HireHuman** (pomysł 1), a dashboard zadań zrób w AG Grid.~~
 
 Dlaczego: to jedyny pomysł, który jednocześnie (a) jest dosłownie odwrotnością tego, co robi 7+ repozytoriów konkurencji, (b) wpisuje się słowo w słowo w kategorię "Best Use of Agentic Commerce" (agent, który *transakcjonuje*, nie rekomenduje), (c) daje wideo z naturalnym napięciem dramatycznym (agent utyka → człowiek dostaje zadanie na telefon → pieniądze lądują w PayPal w 10 sekund), (d) używa Payouts, których nie ma w Agent Toolkit, więc trzeba je opakować samemu jako narzędzie agenta, co jury odczyta jako "genuine, non-trivial implementation".
 
