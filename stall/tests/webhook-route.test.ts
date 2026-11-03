@@ -129,7 +129,8 @@ describe("PayPal webhook route", () => {
   });
 
   describe("payout item events", () => {
-    let batchId: string;
+    const paypalBatchId = "PB-5N8C2K1WQ4XZ";
+    let senderBatchId: string;
     let payoutId: string;
 
     function payoutEvent(id: string, type: string, batch: string, nested = false) {
@@ -146,8 +147,9 @@ describe("PayPal webhook route", () => {
 
     beforeAll(async () => {
       const [row] = await db().select().from(payouts);
-      batchId = row!.batchId;
+      senderBatchId = row!.batchId;
       payoutId = row!.id;
+      await db().update(payouts).set({ paypalBatchId }).where(eq(payouts.id, payoutId));
     });
 
     it("SUCCEEDED marks the payout SUCCESS, stores the item id and emits", async () => {
@@ -157,7 +159,7 @@ describe("PayPal webhook route", () => {
         .where(eq(payouts.id, payoutId));
       emitted.length = 0;
       const res = await POST(
-        hook(payoutEvent("WH-PAYOUT-1", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED", batchId)),
+        hook(payoutEvent("WH-PAYOUT-1", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED", paypalBatchId)),
       );
       expect(await res.json()).toEqual({ result: "processed" });
       const row = await payoutRow();
@@ -175,9 +177,39 @@ describe("PayPal webhook route", () => {
       ["PAYMENT.PAYOUTS-ITEM.UNCLAIMED", "UNCLAIMED"],
     ])("%s sets status %s (nested payout_item payload)", async (type, status) => {
       await db().update(payouts).set({ status: "PENDING" }).where(eq(payouts.id, payoutId));
-      const res = await POST(hook(payoutEvent(`WH-${type}`, type, batchId, true)));
+      const res = await POST(hook(payoutEvent(`WH-${type}`, type, paypalBatchId, true)));
       expect(await res.json()).toEqual({ result: "processed" });
       expect((await payoutRow()).status).toBe(status);
+    });
+
+    it("falls back to our sender batch id when PayPal's id is unknown", async () => {
+      await db().update(payouts).set({ status: "PENDING" }).where(eq(payouts.id, payoutId));
+      const res = await POST(
+        hook(payoutEvent("WH-PAYOUT-FALLBACK", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED", senderBatchId)),
+      );
+      expect(await res.json()).toEqual({ result: "processed" });
+      expect((await payoutRow()).status).toBe("SUCCESS");
+    });
+
+    it("ignores UNCLAIMED once the payout is SUCCESS or FAILED", async () => {
+      for (const final of ["SUCCESS", "FAILED"] as const) {
+        await db().update(payouts).set({ status: final }).where(eq(payouts.id, payoutId));
+        const res = await POST(
+          hook(payoutEvent(`WH-LATE-${final}`, "PAYMENT.PAYOUTS-ITEM.UNCLAIMED", paypalBatchId)),
+        );
+        expect(await res.json()).toEqual({ result: "ignored" });
+        expect((await payoutRow()).status).toBe(final);
+      }
+    });
+
+    it("a replayed event id is a duplicate and emits nothing", async () => {
+      await db().update(payouts).set({ status: "PENDING" }).where(eq(payouts.id, payoutId));
+      emitted.length = 0;
+      const ev = payoutEvent("WH-PAYOUT-REPLAY", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED", paypalBatchId);
+      expect(await (await POST(hook(ev))).json()).toEqual({ result: "processed" });
+      expect(emitted).toHaveLength(1);
+      expect(await (await POST(hook(ev))).json()).toEqual({ result: "duplicate" });
+      expect(emitted).toHaveLength(1);
     });
 
     it("an unknown batch is unmatched", async () => {

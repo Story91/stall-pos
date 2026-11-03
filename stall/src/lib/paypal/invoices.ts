@@ -1,5 +1,5 @@
 import type { computeTotals, Line } from "@/lib/money";
-import { paypalFetch, toMoney } from "./client";
+import { PayPalError, paypalFetch, toMoney } from "./client";
 
 type Money = { currency_code: "USD"; value: string };
 
@@ -172,7 +172,9 @@ export async function generateQr(
     .replace(/^"+|"+$/g, "")
     .replace(/^data:image\/png;base64,/, "")
     .trim();
-  if (base64 === "") throw new Error("PayPal QR code response was empty");
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
+    throw new PayPalError("invalid QR response", 0, "");
+  }
   return base64;
 }
 

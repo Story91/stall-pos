@@ -25,7 +25,11 @@ describe("createPayout", () => {
       cents: 12000,
       note: "Tortilla delivery",
     });
-    expect(result).toEqual({ batchId: "PB-REAL-1", status: "PENDING" });
+    expect(result).toEqual({
+      batchId: "stall-b1-bill-7",
+      paypalBatchId: "PB-REAL-1",
+      status: "PENDING",
+    });
     expect(mockFetch).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/payments/payouts",

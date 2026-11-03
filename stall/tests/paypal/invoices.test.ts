@@ -7,6 +7,7 @@ vi.mock("@/lib/paypal/client", async (importOriginal) => {
 });
 
 import { paypalFetch } from "@/lib/paypal/client";
+import { PayPalError } from "@/lib/paypal/client";
 import { computeTotals, type Line } from "@/lib/money";
 import {
   buildInvoicePayload,
@@ -246,7 +247,29 @@ describe("generateQr", () => {
 
   it("throws when nothing parses", async () => {
     mockFetch.mockResolvedValueOnce('""' as never);
-    await expect(generateQr("INV2-AAAA", "q")).rejects.toThrow(/empty/);
+    await expect(generateQr("INV2-AAAA", "q")).rejects.toThrow(/invalid QR response/);
+  });
+
+  it("returns bare and JSON-quoted base64", async () => {
+    mockFetch.mockResolvedValueOnce("iVBORw0KGgo=" as never);
+    expect(await generateQr("INV2-AAAA", "q")).toBe("iVBORw0KGgo=");
+    mockFetch.mockResolvedValueOnce('"iVBORw0KGgo="' as never);
+    expect(await generateQr("INV2-AAAA", "q")).toBe("iVBORw0KGgo=");
+  });
+
+  it("rejects a multipart body without an image part", async () => {
+    const other = [
+      "--b",
+      'Content-Disposition: form-data; name="other"',
+      "Content-Type: text/plain",
+      "",
+      "iVBORw0KGgo=",
+      "--b--",
+    ].join("\r\n");
+    mockFetch.mockResolvedValueOnce(other as never);
+    const error = await generateQr("INV2-AAAA", "q").catch((e) => e);
+    expect(error).toBeInstanceOf(PayPalError);
+    expect(error).toMatchObject({ status: 0, message: "invalid QR response" });
   });
 
   it("strips surrounding quotes and whitespace", async () => {

@@ -150,6 +150,8 @@ export const payouts = pgTable("payouts", {
     .references(() => bills.id)
     .unique(),
   batchId: text("batch_id").notNull().unique(),
+  // PayPal's own payout_batch_id; differs from our sender batch id (batchId).
+  paypalBatchId: text("paypal_batch_id").unique(),
   itemId: text("item_id"),
   amountCents: integer("amount_cents").notNull(),
   status: payoutStatus("status").notNull().default("PENDING"),

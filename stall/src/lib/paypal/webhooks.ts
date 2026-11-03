@@ -95,12 +95,20 @@ function payoutStatusHandler(status: "SUCCESS" | "FAILED" | "UNCLAIMED"): Handle
     const itemId = resource.payout_item_id ?? resource.payout_item?.payout_item_id;
     if (!batchId) return "unmatched" as const;
 
-    const [payout] = await db
+    // PayPal's batch id first; our sender batch id covers rows without one.
+    let [payout] = await db.select().from(payouts).where(eq(payouts.paypalBatchId, batchId));
+    if (!payout) {
+      [payout] = await db.select().from(payouts).where(eq(payouts.batchId, batchId));
+    }
+    if (!payout) return "unmatched" as const;
+    // A late UNCLAIMED must not undo a final status.
+    if (status === "UNCLAIMED" && (payout.status === "SUCCESS" || payout.status === "FAILED")) {
+      return "ignored" as const;
+    }
+    await db
       .update(payouts)
       .set(itemId ? { status, itemId } : { status })
-      .where(eq(payouts.batchId, batchId))
-      .returning({ id: payouts.id });
-    if (!payout) return "unmatched" as const;
+      .where(eq(payouts.id, payout.id));
 
     emit({ type: "payout.updated", payoutId: payout.id });
     return "processed" as const;

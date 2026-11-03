@@ -17,7 +17,7 @@ export async function createPayout(input: {
   receiverEmail: string;
   cents: number;
   note: string;
-}): Promise<{ batchId: string; status: string }> {
+}): Promise<{ batchId: string; paypalBatchId: string; status: string }> {
   try {
     const body = await paypalFetch<{
       batch_header: { payout_batch_id: string; batch_status: string };
@@ -44,7 +44,8 @@ export async function createPayout(input: {
       },
     });
     return {
-      batchId: body.batch_header.payout_batch_id,
+      batchId: input.batchId,
+      paypalBatchId: body.batch_header.payout_batch_id,
       status: body.batch_header.batch_status,
     };
   } catch (error) {
