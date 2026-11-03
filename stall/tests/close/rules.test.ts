@@ -117,13 +117,15 @@ describe("evaluateObligations", () => {
     expect(outcome?.verdict).toBe("skip");
   });
 
-  it("does not let a FAILED existing payout block a new payment", () => {
+  it("holds as escalated when the existing payout is FAILED, instead of paying again", () => {
     const input = baseInput();
     input.existingPayouts = [{ shiftId: `shift-${maria.id}`, status: "FAILED" }];
 
     const [mariaOutcome] = evaluateObligations(input);
 
-    expect(mariaOutcome?.verdict).toBe("pay");
+    expect(mariaOutcome?.verdict).toBe("hold");
+    expect(mariaOutcome?.decisionType).toBe("escalated");
+    expect(mariaOutcome?.reason).toBe("previous payout FAILED; check before paying again");
   });
 
   it("holds over_limit when the shift exceeds the payee's max per day", () => {

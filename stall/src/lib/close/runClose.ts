@@ -1,4 +1,5 @@
 import { generateText, isStepCount, type LanguageModel } from "ai";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "@/db";
 import { agentRuns } from "@/db/schema";
 import { getModel } from "@/lib/ai/model";
@@ -31,6 +32,8 @@ export type RunCloseResult = {
   paid: { obligationId: string; batchId: string }[];
   held: { decisionId: string }[];
   skipped: number;
+  /** What the model wrote with write_summary, shown to the owner as "Agent's note". Never the source of facts. */
+  agentNote: string | null;
 };
 
 function deterministicSummary(
@@ -50,7 +53,9 @@ function deterministicSummary(
   }
   const heldOutcomes = [...state.held.keys()].map((id) => state.outcomes.get(id)!);
   if (heldOutcomes.length > 0) {
-    const names = heldOutcomes.map((o) => label(o, o.obligation.amountCents)).join(", ");
+    const names = heldOutcomes
+      .map((o) => `${label(o, o.obligation.amountCents)} (${state.held.get(o.obligation.id)!.reason})`)
+      .join("; ");
     parts.push(`${heldOutcomes.length} need your decision: ${names}.`);
   }
   if (failed.length > 0) {
@@ -140,20 +145,43 @@ export async function runClose(
   }
 
   const skipped = outcomes.filter((o) => o.verdict === "skip").length;
-  const summary = state.summary ?? deterministicSummary(date, state, failed, skipped);
-
-  await db
-    .insert(agentRuns)
-    .values({ businessId, date, summary, log: state.log })
-    .onConflictDoUpdate({
-      target: [agentRuns.businessId, agentRuns.date],
-      set: { summary, log: state.log },
-    });
-
-  return {
-    summary,
+  const agentNote = state.summary ?? null;
+  const result = {
     paid: [...state.paid.values()].map(({ obligationId, batchId }) => ({ obligationId, batchId })),
     held: [...state.held.values()].map(({ decisionId }) => ({ decisionId })),
     skipped,
+    agentNote,
   };
+
+  const [existing] = await db
+    .select()
+    .from(agentRuns)
+    .where(and(eq(agentRuns.businessId, businessId), eq(agentRuns.date, date)));
+
+  // Facts come from what actually happened, never from the model's text.
+  const summary = deterministicSummary(date, state, failed, skipped);
+  const acted =
+    state.paid.size > 0 ||
+    state.held.size > 0 ||
+    state.log.some((e) => (e.result as { ok?: boolean } | null)?.ok === false);
+
+  if (existing && !acted) {
+    // A rerun that did nothing must not erase the audit trail of the run that did the work.
+    return { ...result, summary: existing.summary };
+  }
+
+  const priorLog = existing ? existing.log : [];
+  const log = [
+    ...priorLog,
+    ...state.log.map((e) => ({ ...e, step: e.step + priorLog.length })),
+  ];
+  await db
+    .insert(agentRuns)
+    .values({ businessId, date, summary, log })
+    .onConflictDoUpdate({
+      target: [agentRuns.businessId, agentRuns.date],
+      set: { summary, log },
+    });
+
+  return { ...result, summary };
 }

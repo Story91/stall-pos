@@ -30,7 +30,7 @@ export type RuleOutcome = {
   obligation: Obligation;
   verdict: "pay" | "hold" | "skip";
   reason: string;
-  decisionType?: "over_limit" | "duplicate_bill" | "manual_payee";
+  decisionType?: "over_limit" | "duplicate_bill" | "manual_payee" | "escalated";
   evidence?: { paidBillId: string; payoutBatchId: string };
 };
 
@@ -109,6 +109,13 @@ function evaluateOne(obligation: Obligation, input: EvaluateInput, state: RunSta
       "skip",
       `A payout for this ${what} already exists with status ${existing.status}, so it will not be paid again.`,
     );
+  }
+
+  if (existing) {
+    // FAILED/UNCLAIMED/RETURNED: paying again reuses the same PayPal batch id, so a person must look first.
+    return outcome("hold", `previous payout ${existing.status}; check before paying again`, {
+      decisionType: "escalated",
+    });
   }
 
   const amountCents = payableAmount(obligation);

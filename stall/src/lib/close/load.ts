@@ -40,6 +40,31 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
     )
     .orderBy(asc(bills.date), asc(bills.createdAt));
 
+  const decisionRows = await db
+    .select({
+      shiftId: decisions.shiftId,
+      billId: decisions.billId,
+      date: decisions.date,
+      status: decisions.status,
+      createdAt: decisions.createdAt,
+    })
+    .from(decisions)
+    .where(eq(decisions.businessId, businessId));
+  // A held bill whose latest decision is settled (approved, declined, marked paid) is out of the owner's queue
+  // and out of this run; approve/decline/mark_paid move the bill to paid or declined themselves.
+  const latestByBill = new Map<string, { status: string; at: number }>();
+  for (const d of decisionRows) {
+    if (!d.billId) continue;
+    const at = d.createdAt.getTime();
+    const seen = latestByBill.get(d.billId);
+    if (!seen || at >= seen.at) latestByBill.set(d.billId, { status: d.status, at });
+  }
+  const loadableBills = billRows.filter((b) => {
+    if (b.bill.status !== "held") return true;
+    const latest = latestByBill.get(b.bill.id);
+    return !latest || latest.status === "open";
+  });
+
   const obligations: Obligation[] = [
     ...shiftRows.map(
       (s): Obligation => ({
@@ -50,7 +75,7 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
         date,
       }),
     ),
-    ...billRows.map(
+    ...loadableBills.map(
       (b): Obligation => ({
         kind: "bill",
         id: b.bill.id,
@@ -63,7 +88,7 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
   ];
 
   const shiftIds = shiftRows.map((s) => s.id);
-  const billIds = billRows.map((b) => b.bill.id);
+  const billIds = loadableBills.map((b) => b.bill.id);
 
   const existingPayouts: EvaluateInput["existingPayouts"] = [];
   if (shiftIds.length > 0) {
@@ -130,15 +155,6 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
       businessDate(s.paidAt, business.tz) === date,
   );
 
-  const decisionRows = await db
-    .select({
-      shiftId: decisions.shiftId,
-      billId: decisions.billId,
-      date: decisions.date,
-      status: decisions.status,
-    })
-    .from(decisions)
-    .where(eq(decisions.businessId, businessId));
   const decidedIds = new Set<string>();
   for (const d of decisionRows) {
     if (d.date !== date && d.status !== "open") continue;

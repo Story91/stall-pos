@@ -29,7 +29,7 @@ export type CloseState = {
   now: () => Date;
   outcomes: Map<string, RuleOutcome>;
   paid: Map<string, { obligationId: string; batchId: string; cents: number }>;
-  held: Map<string, { decisionId: string }>;
+  held: Map<string, { decisionId: string; reason: string }>;
   log: LogEntry[];
   summary?: string;
   locks: Map<string, Promise<unknown>>;
@@ -46,8 +46,8 @@ export function formatCents(cents: number): string {
 }
 
 /** One line, bounded length: bill notes are data and must not smuggle in structure. */
-function cleanLabel(text: string): string {
-  return text.replace(/\s+/g, " ").trim().slice(0, MAX_LABEL);
+function cleanLabel(text: string, max = MAX_LABEL): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, max);
 }
 
 export function batchIdFor(businessId: string, outcome: RuleOutcome): string {
@@ -94,39 +94,52 @@ export function payObligation(
 
     const { obligation } = outcome;
     const batchId = batchIdFor(state.businessId, outcome);
-    const note = rationale.slice(0, MAX_RATIONALE);
+    // The payee sees this note, so it is code-generated; the model's rationale stays in our own table.
+    const payeeNote = `Stall: ${obligation.kind} ${obligation.date}`;
     let paypalBatchId: string | null = null;
+    let duplicate = false;
     try {
       const sent = await state.createPayout({
         batchId,
         receiverEmail: obligation.payee.email,
         cents: obligation.amountCents,
-        note,
+        note: payeeNote,
       });
       paypalBatchId = sent.paypalBatchId;
     } catch (error) {
-      // PayPal already has this batch: it was paid before, so just record it.
       if (!(error instanceof PayoutDuplicateError)) {
         return { ok: false, error: `payout failed: ${error instanceof Error ? error.message : String(error)}` };
       }
+      duplicate = true;
     }
 
-    const [existing] = await state.db.select().from(payouts).where(eq(payouts.batchId, batchId));
-    if (!existing) {
-      await state.db.insert(payouts).values({
-        businessId: state.businessId,
-        shiftId: obligation.kind === "shift" ? obligation.id : null,
-        billId: obligation.kind === "bill" ? obligation.id : null,
-        batchId,
-        paypalBatchId,
-        amountCents: obligation.amountCents,
-        status: "PENDING",
-        rationale: note,
-      });
+    if (duplicate) {
+      // PayPal already has this batch. It only counts as paid if we hold a live payout row for it.
+      const [row] = await state.db.select().from(payouts).where(eq(payouts.batchId, batchId));
+      if (!row || (row.status !== "PENDING" && row.status !== "SUCCESS")) {
+        return { ok: false, error: `payout exists in status ${row?.status ?? "unknown"}` };
+      }
+      paypalBatchId = row.paypalBatchId;
     }
-    if (obligation.kind === "bill") {
-      await state.db.update(bills).set({ status: "paid" }).where(eq(bills.id, obligation.id));
-    }
+
+    await state.db.transaction(async (tx) => {
+      await tx
+        .insert(payouts)
+        .values({
+          businessId: state.businessId,
+          shiftId: obligation.kind === "shift" ? obligation.id : null,
+          billId: obligation.kind === "bill" ? obligation.id : null,
+          batchId,
+          paypalBatchId,
+          amountCents: obligation.amountCents,
+          status: "PENDING",
+          rationale: rationale.slice(0, MAX_RATIONALE),
+        })
+        .onConflictDoNothing({ target: payouts.batchId });
+      if (obligation.kind === "bill") {
+        await tx.update(bills).set({ status: "paid" }).where(eq(bills.id, obligation.id));
+      }
+    });
     state.paid.set(obligationId, { obligationId, batchId, cents: obligation.amountCents });
     return { ok: true, batchId, paypalBatchId };
   });
@@ -144,29 +157,32 @@ export function holdObligation(
 
     const done = state.held.get(obligationId);
     if (done) return { ok: true, decisionId: done.decisionId };
-    if (state.paid.has(obligationId)) return { ok: false, error: "already paid" };
+    if (state.paid.has(obligationId)) return { ok: false, error: "already paid in this run" };
     if (outcome.verdict === "skip") return { ok: false, error: `cannot hold: ${outcome.reason}` };
 
     const { obligation } = outcome;
     const reason =
       rationale === null ? outcome.reason : `${rationale.slice(0, MAX_RATIONALE)} — ${outcome.reason}`;
-    const [row] = await state.db
-      .insert(decisions)
-      .values({
-        businessId: state.businessId,
-        date: state.date,
-        type: outcome.decisionType ?? "escalated",
-        reason,
-        source: { obligation, evidence: outcome.evidence ?? null },
-        shiftId: obligation.kind === "shift" ? obligation.id : null,
-        billId: obligation.kind === "bill" ? obligation.id : null,
-      })
-      .returning({ id: decisions.id });
-    if (obligation.kind === "bill") {
-      await state.db.update(bills).set({ status: "held" }).where(eq(bills.id, obligation.id));
-    }
-    state.held.set(obligationId, { decisionId: row!.id });
-    return { ok: true, decisionId: row!.id };
+    const decisionId = await state.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(decisions)
+        .values({
+          businessId: state.businessId,
+          date: state.date,
+          type: outcome.decisionType ?? "escalated",
+          reason,
+          source: { obligation, evidence: outcome.evidence ?? null },
+          shiftId: obligation.kind === "shift" ? obligation.id : null,
+          billId: obligation.kind === "bill" ? obligation.id : null,
+        })
+        .returning({ id: decisions.id });
+      if (obligation.kind === "bill") {
+        await tx.update(bills).set({ status: "held" }).where(eq(bills.id, obligation.id));
+      }
+      return row!.id;
+    });
+    state.held.set(obligationId, { decisionId, reason });
+    return { ok: true, decisionId };
   });
 }
 
@@ -227,7 +243,7 @@ function describeOutcome({ obligation, verdict, reason }: RuleOutcome): string {
       : `bill${obligation.note ? ` "${cleanLabel(obligation.note)}"` : ""}`;
   return [
     `- id: ${obligation.id} | ${what} for ${cleanLabel(obligation.payee.name)} | ${formatCents(obligation.amountCents)}`,
-    `  verdict: ${verdict} | rules say: ${reason}`,
+    `  verdict: ${verdict} | rules say: ${cleanLabel(reason, 300)}`,
   ].join("\n");
 }
 

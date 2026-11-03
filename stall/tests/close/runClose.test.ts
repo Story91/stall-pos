@@ -2,10 +2,10 @@ import { MockLanguageModelV4 } from "ai/test";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@/db";
-import { agentRuns, bills, decisions, payouts, shifts } from "@/db/schema";
+import { agentRuns, bills, decisions, payees as payeesTable, payouts, shifts } from "@/db/schema";
 import { seed } from "@/db/seed";
 import { createTestDb } from "@/db/test-db";
-import { buildClosePrompt } from "@/lib/close/agent";
+import { buildClosePrompt, payObligation } from "@/lib/close/agent";
 import { DEFAULT_BUSINESS_DAILY_CAP_CENTS, runClose } from "@/lib/close/runClose";
 import { businessDate } from "@/lib/dates";
 import { PayoutDuplicateError } from "@/lib/paypal/payouts";
@@ -111,7 +111,7 @@ describe("runClose on the demo day", () => {
       batchId: `stall-${businessId}-shift-${mariaShiftId}`,
       receiverEmail: "maria@stall.example",
       cents: 12000,
-      note: "Maria worked today",
+      note: `Stall: shift ${today}`,
     });
 
     const [row] = await db.select().from(payouts).where(eq(payouts.shiftId, mariaShiftId));
@@ -146,11 +146,14 @@ describe("runClose on the demo day", () => {
     ]);
     expect(result.held).toEqual([{ decisionId: decisionRows[0]!.id }]);
     expect(result.skipped).toBe(0);
-    expect(result.summary).toBe("Paid Maria. Rosa needs a look.");
+    // Facts come from code; the model's text is only the agent's note.
+    expect(result.summary).toContain("Paid 1 ($120.00 total): Maria $120.00.");
+    expect(result.summary).toContain("1 need your decision: Tortillería Rosa $240.00 (Possible duplicate");
+    expect(result.agentNote).toBe("Paid Maria. Rosa needs a look.");
 
     const runs = await db.select().from(agentRuns);
     expect(runs).toHaveLength(1);
-    expect(runs[0]!.summary).toBe("Paid Maria. Rosa needs a look.");
+    expect(runs[0]!.summary).toBe(result.summary);
     const log = runs[0]!.log as { step: number; tool: string; result: { error?: string } }[];
     expect(
       log.some((e) => e.tool === "pay_obligation" && e.result.error?.startsWith("not payable:")),
@@ -160,9 +163,12 @@ describe("runClose on the demo day", () => {
 
   it("is a no-op the second time: nothing paid, nothing re-escalated, one agent_runs row", async () => {
     const createPayout = mockPayout();
-    await run({ model: scripted([textStep("ok")]), createPayout });
+    const first = await run({ model: scripted([textStep("ok")]), createPayout });
+    const [runBefore] = await db.select().from(agentRuns);
     const again = await run({ model: scripted([textStep("ok")]), createPayout });
 
+    expect(again.summary).toBe(first.summary);
+    expect(await db.select().from(agentRuns)).toEqual([runBefore]);
     expect(again.paid).toHaveLength(0);
     expect(again.held).toHaveLength(0);
     expect(again.skipped).toBe(2);
@@ -172,22 +178,77 @@ describe("runClose on the demo day", () => {
     expect((await db.select().from(bills).where(eq(bills.id, rosaBillId)))[0]!.status).toBe("held");
   });
 
-  it("never lets the model pay or hold an item that is already handled", async () => {
+  it("serializes parallel tool calls: one payout, unknown ids and double actions are refused", async () => {
     const createPayout = mockPayout();
-    await run({ model: scripted([textStep("ok")]), createPayout });
-
     const model = scripted([
       toolStep(
-        { name: "pay_obligation", input: { obligationId: mariaShiftId, rationale: "again" } },
-        { name: "hold_obligation", input: { obligationId: mariaShiftId, rationale: "again" } },
-        { name: "pay_obligation", input: { obligationId: rosaBillId, rationale: "pay it" } },
+        { name: "pay_obligation", input: { obligationId: mariaShiftId, rationale: "first" } },
+        { name: "pay_obligation", input: { obligationId: mariaShiftId, rationale: "second" } },
+        { name: "pay_obligation", input: { obligationId: "no-such-id", rationale: "bogus" } },
+        { name: "hold_obligation", input: { obligationId: mariaShiftId, rationale: "too late" } },
       ),
       textStep("done"),
     ]);
     await run({ model, createPayout });
+
     expect(createPayout).toHaveBeenCalledTimes(1);
-    expect(await db.select().from(decisions)).toHaveLength(1);
-    expect(await db.select().from(payouts).where(eq(payouts.billId, rosaBillId))).toHaveLength(0);
+    expect(await db.select().from(payouts).where(eq(payouts.shiftId, mariaShiftId))).toHaveLength(1);
+    expect(await db.select().from(decisions).where(eq(decisions.shiftId, mariaShiftId))).toHaveLength(0);
+    const [stored] = await db.select().from(agentRuns);
+    const logText = JSON.stringify(stored!.log);
+    expect(logText).toContain("unknown obligation no-such-id");
+    expect(logText).toContain("already paid in this run");
+  });
+
+  it("appends to the audit trail when a later run acts, instead of replacing it", async () => {
+    const createPayout = mockPayout();
+    await run({ model: scripted([textStep("ok")]), createPayout });
+    const [first] = await db.select().from(agentRuns);
+    const firstLog = first!.log as { step: number }[];
+
+    const [rosaBill] = await db.select().from(bills).where(eq(bills.id, rosaBillId));
+    await db.insert(bills).values({
+      businessId,
+      payeeId: rosaBill!.payeeId,
+      amountCents: 500,
+      note: "limes",
+      date: today,
+    });
+    await run({ model: scripted([textStep("ok")]), createPayout });
+    const runs = await db.select().from(agentRuns);
+    expect(runs).toHaveLength(1);
+    const log = runs[0]!.log as { step: number }[];
+    expect(log.length).toBeGreaterThan(firstLog.length);
+    expect(log.slice(0, firstLog.length)).toEqual(firstLog);
+    expect(log[firstLog.length]!.step).toBe(firstLog.length + 1);
+  });
+
+  it("does not load a held bill whose latest decision is settled", async () => {
+    const createPayout = mockPayout();
+    await run({ model: scripted([textStep("ok")]), createPayout });
+    await db.update(decisions).set({ status: "declined" }).where(eq(decisions.billId, rosaBillId));
+    const again = await run({ model: scripted([textStep("ok")]), createPayout });
+    expect(again.skipped).toBe(1); // only Maria's paid shift
+    expect(again.paid).toHaveLength(0);
+    expect(createPayout).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds as escalated, and does not pay again, when the earlier payout FAILED", async () => {
+    const createPayout = mockPayout();
+    await db.insert(payouts).values({
+      businessId,
+      shiftId: mariaShiftId,
+      batchId: `stall-${businessId}-shift-${mariaShiftId}`,
+      amountCents: 12000,
+      status: "FAILED",
+      rationale: "earlier attempt",
+    });
+    const result = await run({ model: scripted([textStep("ok")]), createPayout });
+    expect(createPayout).not.toHaveBeenCalled();
+    expect(result.paid).toHaveLength(0);
+    const [d] = await db.select().from(decisions).where(eq(decisions.shiftId, mariaShiftId));
+    expect(d).toMatchObject({ type: "escalated" });
+    expect(d!.reason).toContain("previous payout FAILED; check before paying again");
   });
 
   it("pays Maria in code when the model never calls pay_obligation, and stores a deterministic summary", async () => {
@@ -204,6 +265,7 @@ describe("runClose on the demo day", () => {
 
     expect(result.summary).toContain("Maria");
     expect(result.summary).toContain("$120.00");
+    expect(result.agentNote).toBeNull();
     const [stored] = await db.select().from(agentRuns);
     expect(stored!.summary).toBe(result.summary);
   });
@@ -271,26 +333,87 @@ describe("agent escalation", () => {
 });
 
 describe("PayPal failures", () => {
-  it("treats a duplicate batch as already paid and still records the payout", async () => {
+  it("does not mark anything paid when PayPal reports a duplicate batch we hold no payout row for", async () => {
     const createPayout = vi.fn(async (input: PayoutInput): Promise<never> => {
       throw new PayoutDuplicateError(input.batchId);
     });
     const result = await run({ model: scripted([textStep("ok")]), createPayout });
-    expect(result.paid).toHaveLength(1);
-    const [row] = await db.select().from(payouts).where(eq(payouts.shiftId, mariaShiftId));
-    expect(row).toMatchObject({ status: "PENDING", paypalBatchId: null, amountCents: 12000 });
+    expect(result.paid).toHaveLength(0);
+    expect(await db.select().from(payouts).where(eq(payouts.shiftId, mariaShiftId))).toHaveLength(0);
+    expect(result.summary).toMatch(/could not be paid/i);
   });
 
-  it("leaves an item unpaid and unrecorded when PayPal fails, and still saves the run", async () => {
+  it("reports a PayPal failure in the summary even if the model claims it paid", async () => {
     const createPayout = vi.fn(async (): Promise<never> => {
       throw new Error("PayPal 500");
     });
-    const result = await run({ model: scripted([textStep("ok")]), createPayout });
+    const model = scripted([
+      toolStep(
+        { name: "pay_obligation", input: { obligationId: mariaShiftId, rationale: "pay" } },
+        { name: "write_summary", input: { text: "Paid Maria." } },
+      ),
+      textStep("done"),
+    ]);
+    const result = await run({ model, createPayout });
     expect(result.paid).toHaveLength(0);
     expect(await db.select().from(payouts).where(eq(payouts.shiftId, mariaShiftId))).toHaveLength(0);
     const [stored] = await db.select().from(agentRuns);
     expect(JSON.stringify(stored!.log)).toContain("PayPal 500");
     expect(stored!.summary).toMatch(/could not be paid/i);
+    expect(stored!.summary).not.toContain("Paid 1");
+    expect(result.agentNote).toBe("Paid Maria.");
+  });
+});
+
+describe("payObligation duplicate handling", () => {
+  const stateFor = async (status: "FAILED" | "PENDING") => {
+    const [shift] = await db.select().from(shifts).where(eq(shifts.id, mariaShiftId));
+    const [payee] = await db.select().from(payeesTable).where(eq(payeesTable.id, shift!.payeeId));
+    await db.insert(payouts).values({
+      businessId,
+      shiftId: mariaShiftId,
+      batchId: `stall-${businessId}-shift-${mariaShiftId}`,
+      paypalBatchId: "PB-OLD",
+      amountCents: 12000,
+      status,
+      rationale: "earlier",
+    });
+    const outcome = {
+      verdict: "pay" as const,
+      reason: "ok",
+      obligation: {
+        kind: "shift" as const,
+        id: mariaShiftId,
+        payee: payee!,
+        amountCents: 12000,
+        date: today,
+      },
+    };
+    return {
+      db,
+      businessId,
+      date: today,
+      createPayout: vi.fn(async (input: PayoutInput): Promise<never> => {
+        throw new PayoutDuplicateError(input.batchId);
+      }),
+      now: () => new Date(),
+      outcomes: new Map([[mariaShiftId, outcome]]),
+      paid: new Map(),
+      held: new Map(),
+      log: [],
+      locks: new Map(),
+    };
+  };
+
+  it("refuses when the existing payout row is not PENDING/SUCCESS", async () => {
+    const result = await payObligation(await stateFor("FAILED"), mariaShiftId, "retry");
+    expect(result).toEqual({ ok: false, error: "payout exists in status FAILED" });
+  });
+
+  it("accepts a duplicate that matches a live payout row", async () => {
+    const result = await payObligation(await stateFor("PENDING"), mariaShiftId, "retry");
+    expect(result).toMatchObject({ ok: true, paypalBatchId: "PB-OLD" });
+    expect(await db.select().from(payouts).where(eq(payouts.shiftId, mariaShiftId))).toHaveLength(1);
   });
 });
 
