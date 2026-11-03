@@ -9,7 +9,12 @@ export type TranscriptionOptions = {
   onError(e: TranscriptionError): void;
 };
 
-export type TranscriptionHandle = { stop(): void };
+export type TranscriptionHandle = {
+  /** Cancel: aborts recognition and reports nothing. */
+  stop(): void;
+  /** Done talking (push-to-talk release): stops gracefully; the final result is still delivered. */
+  finish(): void;
+};
 
 /** Minimal shape of the Web Speech recognition API we rely on. */
 type SpeechRecognitionAlternativeLike = { transcript: string };
@@ -28,6 +33,7 @@ interface SpeechRecognitionLike {
   onerror: ((ev: SpeechRecognitionErrorEventLike) => void) | null;
   onend: ((ev: unknown) => void) | null;
   start(): void;
+  stop(): void;
   abort(): void;
 }
 
@@ -44,6 +50,11 @@ function getRecognitionConstructor(): SpeechRecognitionConstructor | undefined {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
+/** True when this browser can listen (Chrome, Edge, Safari); false in Firefox and on the server. */
+export function isRecognitionSupported(): boolean {
+  return getRecognitionConstructor() !== undefined;
+}
+
 function mapErrorCode(code: string): TranscriptionError {
   if (code === "not-allowed" || code === "service-not-allowed") return "denied";
   if (code === "no-speech") return "no-speech";
@@ -58,7 +69,7 @@ export function startTranscription(opts: TranscriptionOptions): TranscriptionHan
   const Ctor = getRecognitionConstructor();
   if (!Ctor) {
     opts.onError("unsupported");
-    return { stop() {} };
+    return { stop() {}, finish() {} };
   }
 
   const recognition = new Ctor();
@@ -99,6 +110,11 @@ export function startTranscription(opts: TranscriptionOptions): TranscriptionHan
       // Mark settled first so the "aborted" error and onend that follow are silent.
       settled = true;
       recognition.abort();
+    },
+    finish() {
+      // Not settled: the final onresult (or onend -> no-speech) still reports.
+      if (settled) return;
+      recognition.stop();
     },
   };
 }

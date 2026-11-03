@@ -45,6 +45,8 @@ export function useSaleStatus(
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let source: EventSource | undefined;
+    // Once the live event said paid, a lagging poll must not flip back to awaiting.
+    let paidByEvent = false;
 
     const stop = () => {
       stopped = true;
@@ -60,6 +62,7 @@ export function useSaleStatus(
         if (!response.ok || stopped) return;
         const body = (await response.json()) as { status?: unknown };
         if (stopped || !isSaleStatus(body.status)) return;
+        if (paidByEvent && !TERMINAL.has(body.status)) return;
         setStatus(body.status);
         if (TERMINAL.has(body.status)) stop();
       } catch {
@@ -91,6 +94,7 @@ export function useSaleStatus(
           (event as { type?: unknown }).type === "sale.paid" &&
           (event as { saleId?: unknown }).saleId === saleId;
         if (!isMatch) return;
+        paidByEvent = true;
         setStatus("paid");
         void refresh();
       };

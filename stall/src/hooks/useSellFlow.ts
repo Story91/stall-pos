@@ -1,0 +1,230 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { TipPct } from "@/components/sell/TipToggle";
+import type { MicState } from "@/components/sell/MicButton";
+import type { Language } from "@/lib/parse/schema";
+import { sellApi, type BusinessInfo, type ChargeResponse, type FailureKind } from "@/lib/sell/api";
+import { confirmationText } from "@/lib/sell/confirmationText";
+import { readLanguage, subscribeLanguage, writeLanguage } from "@/lib/sell/languageStore";
+import { rowsToLines, toRows, type ItemRow } from "@/lib/sell/rows";
+import { speak } from "@/lib/voice/speak";
+import {
+  isRecognitionSupported,
+  startTranscription,
+  type TranscriptionHandle,
+} from "@/lib/voice/transcribe";
+
+export type Notice =
+  | { kind: "mic-denied" }
+  | { kind: "no-speech" }
+  | { kind: "no-order"; transcript: string }
+  | { kind: "retry"; cause: Exclude<FailureKind, "no-order">; action: "parse" | "charge" };
+
+export type QrStage = { sale: ChargeResponse; language: Language };
+
+const noopSubscribe = () => () => {};
+
+export function useSellFlow() {
+  const language = useSyncExternalStore(subscribeLanguage, readLanguage, () => "en" as const);
+  const micSupported = useSyncExternalStore(noopSubscribe, isRecognitionSupported, () => true);
+
+  const [business, setBusiness] = useState<BusinessInfo | null>(null);
+  const [rows, setRowsState] = useState<ItemRow[]>([]);
+  const [tipPct, setTipState] = useState<TipPct>(null);
+  const [transcript, setTranscript] = useState("");
+  const [saleLanguage, setSaleLanguage] = useState<Language>(language);
+  const [mic, setMic] = useState<MicState>("idle");
+  const [parsing, setParsing] = useState(false);
+  const [charging, setCharging] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [qr, setQr] = useState<QrStage | null>(null);
+  const [cashPending, setCashPending] = useState(false);
+  const [cashError, setCashError] = useState<string | null>(null);
+  const [paidCash, setPaidCash] = useState(false);
+
+  // One draftId per sale: every Charge retry of the same ticket reuses it, so
+  // the server and PayPal dedupe. Editing the ticket after an attempt makes it
+  // a different charge body, so it gets a fresh id.
+  const draftId = useRef<string | null>(null);
+  const attempted = useRef(false);
+  const handle = useRef<TranscriptionHandle | null>(null);
+  const parseSeq = useRef(0);
+  const lastParse = useRef<{ transcript: string; language: Language } | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void sellApi.business().then((result) => {
+      if (live && result.ok) setBusiness(result.data);
+    });
+    return () => {
+      live = false;
+      handle.current?.stop();
+    };
+  }, []);
+
+  const touchTicket = () => {
+    if (attempted.current) {
+      draftId.current = crypto.randomUUID();
+      attempted.current = false;
+    }
+  };
+  const setRows = (next: ItemRow[]) => {
+    touchTicket();
+    setRowsState(next);
+  };
+  const setTip = (next: TipPct) => {
+    touchTicket();
+    setTipState(next);
+  };
+
+  const parse = useCallback(async (text: string, lang: Language) => {
+    const seq = ++parseSeq.current;
+    lastParse.current = { transcript: text, language: lang };
+    setTranscript(text);
+    setNotice(null);
+    setParsing(true);
+    const result = await sellApi.parse(text, lang);
+    if (seq !== parseSeq.current) return; // a newer order replaced this one
+    setParsing(false);
+    if (!result.ok) {
+      setNotice(
+        result.kind === "no-order"
+          ? { kind: "no-order", transcript: text }
+          : { kind: "retry", cause: result.kind, action: "parse" },
+      );
+      return;
+    }
+    if (result.data.items.length === 0) {
+      setNotice({ kind: "no-order", transcript: text });
+      return;
+    }
+    draftId.current = crypto.randomUUID();
+    attempted.current = false;
+    setRowsState(toRows(result.data.items));
+    setSaleLanguage(result.data.language);
+  }, []);
+
+  const pressStart = () => {
+    handle.current?.stop();
+    setNotice(null);
+    setMic("listening");
+    const lang = language;
+    handle.current = startTranscription({
+      language: lang,
+      onResult(text) {
+        handle.current = null;
+        setMic("idle");
+        if (text) void parse(text, lang);
+        else setNotice({ kind: "no-speech" });
+      },
+      onError(error) {
+        handle.current = null;
+        setMic("idle");
+        setNotice(error === "denied" ? { kind: "mic-denied" } : { kind: "no-speech" });
+      },
+    });
+  };
+
+  const pressEnd = () => {
+    handle.current?.finish();
+  };
+
+  const charge = async () => {
+    if (charging) return;
+    draftId.current ??= crypto.randomUUID();
+    attempted.current = true;
+    setCharging(true);
+    setNotice(null);
+    const result = await sellApi.charge({
+      draftId: draftId.current,
+      lines: rowsToLines(rows),
+      tipPct,
+      language: saleLanguage,
+      transcript,
+    });
+    setCharging(false);
+    if (!result.ok) {
+      setNotice({
+        kind: "retry",
+        cause: result.kind === "no-order" ? "server" : result.kind,
+        action: "charge",
+      });
+      return;
+    }
+    setQr({ sale: result.data, language: saleLanguage });
+  };
+
+  const retry = () => {
+    if (notice?.kind !== "retry") return;
+    if (notice.action === "charge") void charge();
+    else if (lastParse.current) void parse(lastParse.current.transcript, lastParse.current.language);
+  };
+
+  const payCash = async () => {
+    if (!qr || cashPending) return;
+    setCashPending(true);
+    setCashError(null);
+    const result = await sellApi.cash(qr.sale.saleId);
+    setCashPending(false);
+    if (result.ok) setPaidCash(true);
+    else if (result.kind === "conflict") setCashError("This sale cannot take cash now. It may already be paid.");
+    else if (result.kind === "network") setCashError("No connection. Check your signal and try again.");
+    else setCashError("PayPal did not record the cash payment. Try again.");
+  };
+
+  const announcePaid = useCallback(() => {
+    if (!qr) return;
+    speak(confirmationText(qr.language, qr.sale.totalCents), qr.language);
+    navigator.vibrate?.(200);
+  }, [qr]);
+
+  const newSale = () => {
+    handle.current?.stop();
+    handle.current = null;
+    parseSeq.current++;
+    draftId.current = null;
+    attempted.current = false;
+    lastParse.current = null;
+    setRowsState([]);
+    setTipState(null);
+    setTranscript("");
+    setMic("idle");
+    setParsing(false);
+    setCharging(false);
+    setNotice(null);
+    setQr(null);
+    setCashPending(false);
+    setCashError(null);
+    setPaidCash(false);
+  };
+
+  return {
+    language,
+    setLanguage: writeLanguage,
+    micSupported,
+    business,
+    rows,
+    setRows,
+    tipPct,
+    setTip,
+    transcript,
+    mic: parsing ? ("busy" as const) : mic,
+    parsing,
+    charging,
+    notice,
+    dismissNotice: () => setNotice(null),
+    pressStart,
+    pressEnd,
+    submitText: (text: string) => void parse(text.trim(), language),
+    charge: () => void charge(),
+    retry,
+    qr,
+    cashPending,
+    cashError,
+    paidCash,
+    payCash: () => void payCash(),
+    announcePaid,
+    newSale,
+  };
+}

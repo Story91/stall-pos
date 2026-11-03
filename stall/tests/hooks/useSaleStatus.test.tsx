@@ -151,4 +151,29 @@ describe("useSaleStatus", () => {
     await advance(POLL_MS * 3);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps showing paid after the event when a later poll still says awaiting", async () => {
+    // The webhook event can land before the status read sees the commit.
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse("awaiting"));
+
+    await act(async () => {
+      render(
+        <Probe
+          saleId="s1"
+          deps={{
+            fetchImpl: fetchImpl as never,
+            EventSourceImpl: FakeEventSource as never,
+          }}
+        />,
+      );
+    });
+    await act(async () => {
+      FakeEventSource.instances[0]?.send({ type: "sale.paid", saleId: "s1" });
+    });
+    expect(shown()).toBe("paid");
+
+    await advance(POLL_MS * 2);
+    expect(fetchImpl.mock.calls.length).toBeGreaterThan(2);
+    expect(shown()).toBe("paid");
+  });
 });

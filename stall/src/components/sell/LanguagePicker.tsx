@@ -1,0 +1,39 @@
+"use client";
+
+import { LANGUAGES, type Language } from "@/lib/parse/schema";
+
+const NAMES: Record<Language, string> = { en: "English", es: "Español", pl: "Polski" };
+
+type Props = {
+  value: Language;
+  onChange(language: Language): void;
+  disabled?: boolean;
+};
+
+/** The language the vendor speaks; also the language "Paid" is spoken in. */
+export function LanguagePicker({ value, onChange, disabled }: Props) {
+  return (
+    <div role="radiogroup" aria-label="Language you speak" className="flex gap-1.5">
+      {LANGUAGES.map((language) => {
+        const checked = language === value;
+        return (
+          <button
+            key={language}
+            type="button"
+            role="radio"
+            aria-checked={checked}
+            aria-label={NAMES[language]}
+            title={NAMES[language]}
+            disabled={disabled}
+            onClick={() => onChange(language)}
+            className={`money min-h-14 min-w-14 rounded-full border-2 border-ink px-3 text-xl font-bold disabled:opacity-50 ${
+              checked ? "bg-ink text-marigold" : "bg-paper text-ink"
+            }`}
+          >
+            {language.toUpperCase()}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

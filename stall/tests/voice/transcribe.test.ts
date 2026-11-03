@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { startTranscription } from "@/lib/voice/transcribe";
+import { isRecognitionSupported, startTranscription } from "@/lib/voice/transcribe";
 
 type Handler = ((ev: unknown) => void) | null;
 
@@ -15,6 +15,7 @@ class FakeRecognition {
   onend: Handler = null;
   start = vi.fn();
   abort = vi.fn();
+  stop = vi.fn();
   constructor() {
     FakeRecognition.instances.push(this);
   }
@@ -193,5 +194,44 @@ describe("startTranscription", () => {
 
     expect(onResult).toHaveBeenCalledWith("water");
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("finish() stops gracefully and still delivers the final result", () => {
+    const onResult = vi.fn();
+    const onError = vi.fn();
+    const handle = startTranscription({ language: "en", onResult, onError });
+
+    handle.finish();
+    const rec = lastInstance();
+    expect(rec.stop).toHaveBeenCalledTimes(1);
+    expect(rec.abort).not.toHaveBeenCalled();
+
+    rec.onresult?.(resultEvent("two tacos al pastor"));
+    rec.onend?.({});
+
+    expect(onResult).toHaveBeenCalledExactlyOnceWith("two tacos al pastor");
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("finish() with nothing heard reports a single no-speech", () => {
+    const onError = vi.fn();
+    const handle = startTranscription({ language: "en", onResult: vi.fn(), onError });
+
+    handle.finish();
+    lastInstance().onend?.({});
+
+    expect(onError).toHaveBeenCalledExactlyOnceWith("no-speech");
+  });
+
+  it("finish() is a no-op when speech is unsupported", () => {
+    delete w.SpeechRecognition;
+    const handle = startTranscription({ language: "en", onResult: vi.fn(), onError: vi.fn() });
+    expect(() => handle.finish()).not.toThrow();
+  });
+
+  it("isRecognitionSupported reflects the recognition constructor", () => {
+    expect(isRecognitionSupported()).toBe(true);
+    delete w.SpeechRecognition;
+    expect(isRecognitionSupported()).toBe(false);
   });
 });
