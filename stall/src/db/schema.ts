@@ -189,3 +189,14 @@ export const webhookEvents = pgTable("webhook_events", {
   processedAt: timestamp("processed_at", { withTimezone: true }),
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
 });
+
+export type Business = typeof businesses.$inferSelect;
+export type CatalogItem = typeof catalogItems.$inferSelect;
+export type Sale = typeof sales.$inferSelect;
+export type Payee = typeof payees.$inferSelect;
+export type Shift = typeof shifts.$inferSelect;
+export type Bill = typeof bills.$inferSelect;
+export type Payout = typeof payouts.$inferSelect;
+export type Decision = typeof decisions.$inferSelect;
+export type AgentRun = typeof agentRuns.$inferSelect;
+export type WebhookEvent = typeof webhookEvents.$inferSelect;

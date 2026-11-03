@@ -123,11 +123,23 @@ describe("seed", () => {
   });
 
   it("is idempotent", async () => {
+    const before = {
+      sales: (await db.select().from(sales)).length,
+      shifts: (await db.select().from(shifts)).length,
+      payouts: (await db.select().from(payouts)).length,
+    };
+    expect(before.shifts).toBe(1);
+    expect(before.payouts).toBe(1);
+
     const again = await seed(db);
+
+    expect(again.businessId).not.toBe(result.businessId);
     expect(await db.select().from(businesses)).toHaveLength(1);
     expect(await db.select().from(payees)).toHaveLength(2);
     expect(await db.select().from(bills)).toHaveLength(2);
     expect(await db.select().from(catalogItems)).toHaveLength(12);
-    expect(again.businessId).not.toBe("");
+    expect(await db.select().from(sales)).toHaveLength(before.sales);
+    expect(await db.select().from(shifts)).toHaveLength(before.shifts);
+    expect(await db.select().from(payouts)).toHaveLength(before.payouts);
   });
 });

@@ -5,6 +5,18 @@ import { env } from "@/lib/env";
 import * as schema from "./schema";
 
 export { schema };
+export type {
+  AgentRun,
+  Bill,
+  Business,
+  CatalogItem,
+  Decision,
+  Payee,
+  Payout,
+  Sale,
+  Shift,
+  WebhookEvent,
+} from "./schema";
 
 // Common drizzle type shared by the node-postgres driver (`db`) and PGlite
 // (`createTestDb`), so application code can accept either.
