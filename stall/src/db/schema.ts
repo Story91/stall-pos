@@ -93,6 +93,8 @@ export const sales = pgTable("sales", {
   totalCents: integer("total_cents").notNull(),
   language: text("language").notNull().default("en"),
   transcript: text("transcript"),
+  qrPng: text("qr_png"),
+  payLink: text("pay_link"),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: createdAt(),
 });

@@ -1,0 +1,162 @@
+import type { computeTotals, Line } from "@/lib/money";
+import { paypalFetch, toMoney } from "./client";
+
+type Money = { currency_code: "USD"; value: string };
+
+export type InvoiceItem = {
+  name: string;
+  quantity: string;
+  unit_amount: Money;
+  unit_of_measure?: "QUANTITY";
+  tax?: { name: string; percent: string };
+};
+
+export type InvoicePayload = {
+  detail: {
+    currency_code: "USD";
+    invoice_number: string;
+    note: string;
+    payment_term: { term_type: "DUE_ON_RECEIPT" };
+  };
+  invoicer: { business_name: string };
+  items: InvoiceItem[];
+};
+
+const usd = (cents: number): Money => ({
+  currency_code: "USD",
+  value: toMoney(cents),
+});
+
+/**
+ * Totals are not sent: PayPal computes them from the items. Our own totals
+ * (from `computeTotals`) are what we store, so the two must agree.
+ */
+export function buildInvoicePayload(input: {
+  invoiceNumber: string;
+  lines: Line[];
+  totals: ReturnType<typeof computeTotals>;
+  taxRate: number;
+  businessName: string;
+}): InvoicePayload {
+  const percent = (input.taxRate * 100).toFixed(2);
+  const items: InvoiceItem[] = input.lines.map((line) => ({
+    name: line.name,
+    quantity: String(line.qty),
+    unit_amount: usd(line.unitCents),
+    unit_of_measure: "QUANTITY",
+    tax: line.taxable ? { name: "Sales tax", percent } : undefined,
+  }));
+  if (input.totals.tipCents > 0) {
+    items.push({
+      name: "Tip",
+      quantity: "1",
+      unit_amount: usd(input.totals.tipCents),
+    });
+  }
+  return {
+    detail: {
+      currency_code: "USD",
+      invoice_number: input.invoiceNumber,
+      note: input.businessName,
+      payment_term: { term_type: "DUE_ON_RECEIPT" },
+    },
+    invoicer: { business_name: input.businessName },
+    items,
+  };
+}
+
+/**
+ * Creates the invoice, marks it sent without emailing anyone (the customer pays
+ * by scanning the QR / opening the link), and reads back the payer-facing link.
+ */
+export async function createAndSendInvoice(
+  payload: InvoicePayload,
+  requestId: string,
+): Promise<{ invoiceId: string; payLink: string }> {
+  const created = await paypalFetch<{ id?: string; href?: string }>({
+    method: "POST",
+    path: "/v2/invoicing/invoices",
+    body: payload,
+    requestId,
+  });
+  // Depending on the Prefer header PayPal returns the full invoice or only
+  // { rel, href, method }, whose last path segment is the id.
+  const invoiceId = created?.id ?? created?.href?.split("/").filter(Boolean).pop();
+  if (!invoiceId) {
+    throw new Error("PayPal create invoice response had neither id nor href");
+  }
+
+  await paypalFetch({
+    method: "POST",
+    path: `/v2/invoicing/invoices/${invoiceId}/send`,
+    body: { send_to_recipient: false, send_to_invoicer: false },
+    requestId: `${requestId}-send`,
+  });
+
+  const invoice = await paypalFetch<{
+    detail?: { metadata?: { recipient_view_url?: string } };
+  }>({ method: "GET", path: `/v2/invoicing/invoices/${invoiceId}` });
+  const payLink = invoice?.detail?.metadata?.recipient_view_url;
+  if (!payLink) {
+    throw new Error(
+      `PayPal invoice ${invoiceId} has no detail.metadata.recipient_view_url`,
+    );
+  }
+  return { invoiceId, payLink };
+}
+
+// The QR endpoint answers with a bare base64 string, which paypalFetch's JSON
+// parsing would reject. Re-encode a non-JSON success body as a JSON string.
+const rawBodyFetch: typeof fetch = async (input, init) => {
+  const res = await fetch(input, init);
+  if (!res.ok) return res;
+  const text = await res.text();
+  let body = text;
+  try {
+    JSON.parse(text);
+  } catch {
+    body = JSON.stringify(text);
+  }
+  return new Response(body, { status: res.status, headers: res.headers });
+};
+
+/** Base64 PNG of a pay QR code, without quotes or data-URI prefix. */
+export async function generateQr(invoiceId: string): Promise<string> {
+  const res = await paypalFetch<unknown>({
+    method: "POST",
+    path: `/v2/invoicing/invoices/${invoiceId}/generate-qr-code`,
+    body: { width: 400, height: 400, action: "pay" },
+    fetchImpl: rawBodyFetch,
+  });
+  if (typeof res !== "string") {
+    throw new Error("PayPal QR code response was not a string");
+  }
+  const base64 = res
+    .trim()
+    .replace(/^"+|"+$/g, "")
+    .replace(/^data:image\/png;base64,/, "")
+    .trim();
+  if (base64 === "") throw new Error("PayPal QR code response was empty");
+  return base64;
+}
+
+export async function recordCashPayment(
+  invoiceId: string,
+  cents: number,
+  requestId: string,
+): Promise<void> {
+  await paypalFetch({
+    method: "POST",
+    path: `/v2/invoicing/invoices/${invoiceId}/payments`,
+    body: { method: "CASH", amount: usd(cents) },
+    requestId,
+  });
+}
+
+export async function getInvoiceStatus(invoiceId: string): Promise<string> {
+  const invoice = await paypalFetch<{ status: string }>({
+    method: "GET",
+    path: `/v2/invoicing/invoices/${invoiceId}`,
+  });
+  return invoice.status;
+}
