@@ -1,0 +1,23 @@
+{
+  "id": "WH-PAYOUT-1",
+  "event_version": "1.0",
+  "create_time": "2026-11-07T22:10:05.000Z",
+  "resource_type": "payouts_item",
+  "event_type": "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+  "summary": "A payout item has succeeded",
+  "resource": {
+    "transaction_id": "7DX12345AB678901C",
+    "payout_item_fee": { "currency": "USD", "value": "0.25" },
+    "transaction_status": "SUCCESS",
+    "payout_item_id": "ITEM4KQ9W2M7XZ",
+    "payout_batch_id": "REPLACED-IN-TEST",
+    "payout_item": {
+      "recipient_type": "EMAIL",
+      "amount": { "currency": "USD", "value": "240.00" },
+      "note": "Tortilla delivery",
+      "receiver": "rosa@example.com",
+      "sender_item_id": "REPLACED-IN-TEST"
+    },
+    "time_processed": "2026-11-07T22:10:00Z"
+  }
+}

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db";
-import { sales, webhookEvents } from "@/db/schema";
+import { payouts, sales, webhookEvents } from "@/db/schema";
 import { env } from "@/lib/env";
 import { emit } from "@/lib/events";
 import { markPaid } from "@/lib/sales";
@@ -84,10 +84,38 @@ async function onInvoicePaid(db: Db, event: WebhookEvent) {
   return "processed" as const;
 }
 
-// Task 13 adds payout entries here.
+type PayoutItemFields = { payout_batch_id?: string; payout_item_id?: string };
+type PayoutItemResource = PayoutItemFields & { payout_item?: PayoutItemFields };
+
+function payoutStatusHandler(status: "SUCCESS" | "FAILED" | "UNCLAIMED"): Handler {
+  return async (db, event) => {
+    const resource = (event.resource ?? {}) as PayoutItemResource;
+    // Some payloads nest the item fields under `resource.payout_item`.
+    const batchId = resource.payout_batch_id ?? resource.payout_item?.payout_batch_id;
+    const itemId = resource.payout_item_id ?? resource.payout_item?.payout_item_id;
+    if (!batchId) return "unmatched" as const;
+
+    const [payout] = await db
+      .update(payouts)
+      .set(itemId ? { status, itemId } : { status })
+      .where(eq(payouts.batchId, batchId))
+      .returning({ id: payouts.id });
+    if (!payout) return "unmatched" as const;
+
+    emit({ type: "payout.updated", payoutId: payout.id });
+    return "processed" as const;
+  };
+}
+
 const handlers: Record<string, Handler> = {
   "INVOICING.INVOICE.PAID": onInvoicePaid,
-  "PAYMENT.PAYOUTS-ITEM.*": async () => "ignored",
+  "PAYMENT.PAYOUTS-ITEM.SUCCEEDED": payoutStatusHandler("SUCCESS"),
+  "PAYMENT.PAYOUTS-ITEM.FAILED": payoutStatusHandler("FAILED"),
+  "PAYMENT.PAYOUTS-ITEM.BLOCKED": payoutStatusHandler("FAILED"),
+  "PAYMENT.PAYOUTS-ITEM.DENIED": payoutStatusHandler("FAILED"),
+  "PAYMENT.PAYOUTS-ITEM.REFUNDED": payoutStatusHandler("FAILED"),
+  "PAYMENT.PAYOUTS-ITEM.RETURNED": payoutStatusHandler("FAILED"),
+  "PAYMENT.PAYOUTS-ITEM.UNCLAIMED": payoutStatusHandler("UNCLAIMED"),
 };
 
 function handlerFor(type: string): Handler | undefined {

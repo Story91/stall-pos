@@ -2,10 +2,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "@/db/test-db";
 import { seed } from "@/db/seed";
-import { sales, webhookEvents } from "@/db/schema";
+import { payouts, sales, webhookEvents } from "@/db/schema";
 import { chargeSale, getBusiness, getSale } from "@/lib/sales";
 import { subscribe, type StallEvent } from "@/lib/events";
 import fixture from "./fixtures/webhook-invoice-paid.json";
+import payoutFixture from "./fixtures/webhook-payout-item-succeeded.json";
 
 const holder = vi.hoisted(() => ({ db: undefined as unknown }));
 vi.mock("@/db", () => ({
@@ -125,6 +126,73 @@ describe("PayPal webhook route", () => {
     expect(await res.json()).toEqual({ result: "ignored" });
     const [row] = await db().select().from(webhookEvents).where(eq(webhookEvents.id, "WH-OTHER"));
     expect(row?.processedAt).toBeInstanceOf(Date);
+  });
+
+  describe("payout item events", () => {
+    let batchId: string;
+    let payoutId: string;
+
+    function payoutEvent(id: string, type: string, batch: string, nested = false) {
+      const resource = nested
+        ? { payout_item: { ...payoutFixture.resource.payout_item, payout_batch_id: batch } }
+        : { ...payoutFixture.resource, payout_batch_id: batch };
+      return { ...payoutFixture, id, event_type: type, resource };
+    }
+
+    async function payoutRow() {
+      const [row] = await db().select().from(payouts).where(eq(payouts.id, payoutId));
+      return row!;
+    }
+
+    beforeAll(async () => {
+      const [row] = await db().select().from(payouts);
+      batchId = row!.batchId;
+      payoutId = row!.id;
+    });
+
+    it("SUCCEEDED marks the payout SUCCESS, stores the item id and emits", async () => {
+      await db()
+        .update(payouts)
+        .set({ status: "PENDING", itemId: null })
+        .where(eq(payouts.id, payoutId));
+      emitted.length = 0;
+      const res = await POST(
+        hook(payoutEvent("WH-PAYOUT-1", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED", batchId)),
+      );
+      expect(await res.json()).toEqual({ result: "processed" });
+      const row = await payoutRow();
+      expect(row.status).toBe("SUCCESS");
+      expect(row.itemId).toBe("ITEM4KQ9W2M7XZ");
+      expect(emitted).toEqual([{ type: "payout.updated", payoutId }]);
+    });
+
+    it.each([
+      ["PAYMENT.PAYOUTS-ITEM.FAILED", "FAILED"],
+      ["PAYMENT.PAYOUTS-ITEM.BLOCKED", "FAILED"],
+      ["PAYMENT.PAYOUTS-ITEM.DENIED", "FAILED"],
+      ["PAYMENT.PAYOUTS-ITEM.REFUNDED", "FAILED"],
+      ["PAYMENT.PAYOUTS-ITEM.RETURNED", "FAILED"],
+      ["PAYMENT.PAYOUTS-ITEM.UNCLAIMED", "UNCLAIMED"],
+    ])("%s sets status %s (nested payout_item payload)", async (type, status) => {
+      await db().update(payouts).set({ status: "PENDING" }).where(eq(payouts.id, payoutId));
+      const res = await POST(hook(payoutEvent(`WH-${type}`, type, batchId, true)));
+      expect(await res.json()).toEqual({ result: "processed" });
+      expect((await payoutRow()).status).toBe(status);
+    });
+
+    it("an unknown batch is unmatched", async () => {
+      const res = await POST(
+        hook(payoutEvent("WH-PAYOUT-NOPE", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED", "nope")),
+      );
+      expect(await res.json()).toEqual({ result: "unmatched" });
+    });
+
+    it("batch events stay ignored", async () => {
+      const res = await POST(
+        hook({ id: "WH-BATCH", event_type: "PAYMENT.PAYOUTSBATCH.SUCCESS", resource: {} }),
+      );
+      expect(await res.json()).toEqual({ result: "ignored" });
+    });
   });
 
   it("rejects a bad signature with 400 and stores nothing", async () => {

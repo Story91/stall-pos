@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/paypal/client", async (importOriginal) => {
@@ -215,6 +216,37 @@ describe("generateQr", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("extracts the image part from PayPal's real multipart response", async () => {
+    const fixture = readFileSync("tests/fixtures/paypal-qr-multipart.txt", "utf8");
+    // Emulate paypalFetch: run the supplied fetch, then JSON-parse the body.
+    mockFetch.mockImplementationOnce((async (opts: { fetchImpl?: typeof fetch }) => {
+      vi.stubGlobal(
+        "fetch",
+        async () =>
+          new Response(fixture, {
+            status: 200,
+            headers: { "content-type": "multipart/form-data; boundary=1714443c" },
+          }),
+      );
+      try {
+        const res = await opts.fetchImpl!("https://x.test/qr");
+        return JSON.parse(await res.text());
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    }) as never);
+    const qr = await generateQr("INV2-AAAA", "qr-req-1");
+    expect(qr.startsWith("iVBORw0KGgo")).toBe(true);
+    expect(qr).not.toContain("--");
+    expect(qr).not.toContain("Content-");
+    expect(qr).not.toMatch(/\s/);
+  });
+
+  it("throws when nothing parses", async () => {
+    mockFetch.mockResolvedValueOnce('""' as never);
+    await expect(generateQr("INV2-AAAA", "q")).rejects.toThrow(/empty/);
   });
 
   it("strips surrounding quotes and whitespace", async () => {

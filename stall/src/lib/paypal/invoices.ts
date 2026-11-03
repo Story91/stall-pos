@@ -127,8 +127,9 @@ export async function createAndSendInvoice(
   return { invoiceId, payLink };
 }
 
-// The QR endpoint answers with a bare base64 string, which paypalFetch's JSON
-// parsing would reject. Re-encode a non-JSON success body as a JSON string.
+// The QR endpoint answers with a multipart/form-data body (or, in other
+// environments, a bare base64 string), which paypalFetch's JSON parsing would
+// reject. Re-encode a non-JSON success body as a JSON string so it survives.
 const rawBodyFetch: typeof fetch = async (input, init) => {
   const res = await fetch(input, init);
   if (!res.ok) return res;
@@ -141,6 +142,15 @@ const rawBodyFetch: typeof fetch = async (input, init) => {
   }
   return new Response(body, { status: res.status, headers: res.headers });
 };
+
+/** Pulls the `image` part out of a multipart body; undefined if there is none. */
+function extractMultipartImage(text: string): string | undefined {
+  const part = /name="image"[^\r\n]*\r?\n(?:[^\r\n]+\r?\n)*\r?\n/.exec(text);
+  if (!part) return undefined;
+  const body = text.slice(part.index + part[0].length);
+  const end = body.search(/\r?\n--/);
+  return (end === -1 ? body : body.slice(0, end)).trim();
+}
 
 /** Base64 PNG of a pay QR code, without quotes or data-URI prefix. */
 export async function generateQr(
@@ -157,7 +167,7 @@ export async function generateQr(
   if (typeof res !== "string") {
     throw new Error("PayPal QR code response was not a string");
   }
-  const base64 = res
+  const base64 = (extractMultipartImage(res) ?? res)
     .trim()
     .replace(/^"+|"+$/g, "")
     .replace(/^data:image\/png;base64,/, "")
