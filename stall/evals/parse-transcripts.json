@@ -1,0 +1,108 @@
+{
+  "catalog": [
+    { "name": "Taco al pastor", "aliases": ["tacos de pastor"], "defaultPriceCents": 450, "taxable": true },
+    { "name": "Taco de carnitas", "aliases": ["tacos de carnitas"], "defaultPriceCents": 450, "taxable": true },
+    { "name": "Taco de barbacoa", "aliases": ["tacos de barbacoa"], "defaultPriceCents": 475, "taxable": true },
+    { "name": "Quesadilla", "aliases": [], "defaultPriceCents": 650, "taxable": true },
+    { "name": "Burrito", "aliases": [], "defaultPriceCents": 950, "taxable": true },
+    { "name": "Torta", "aliases": [], "defaultPriceCents": 850, "taxable": true },
+    { "name": "Elote", "aliases": [], "defaultPriceCents": 400, "taxable": true },
+    { "name": "Chips and salsa", "aliases": ["totopos"], "defaultPriceCents": 350, "taxable": true },
+    { "name": "Agua fresca", "aliases": [], "defaultPriceCents": 300, "taxable": true },
+    { "name": "Horchata", "aliases": [], "defaultPriceCents": 350, "taxable": true },
+    { "name": "Mexican Coke", "aliases": ["coca de vidrio"], "defaultPriceCents": 300, "taxable": true },
+    { "name": "Churros", "aliases": [], "defaultPriceCents": 400, "taxable": true }
+  ],
+  "cases": [
+    {
+      "id": "en-1",
+      "language": "en",
+      "transcript": "two tacos al pastor and an agua fresca",
+      "expected": [
+        { "nameIncludes": "pastor", "qty": 2, "unitCents": 450 },
+        { "nameIncludes": "agua", "qty": 1, "unitCents": 300 }
+      ]
+    },
+    {
+      "id": "en-2",
+      "language": "en",
+      "transcript": "three dollars for the salsa",
+      "expected": [{ "nameIncludes": "salsa", "qty": 1, "unitCents": 300 }]
+    },
+    {
+      "id": "en-3",
+      "language": "en",
+      "transcript": "one burrito and two horchatas",
+      "expected": [
+        { "nameIncludes": "burrito", "qty": 1, "unitCents": 950 },
+        { "nameIncludes": "horchata", "qty": 2, "unitCents": 350 }
+      ]
+    },
+    {
+      "id": "en-4",
+      "language": "en",
+      "transcript": "three churros at five each",
+      "expected": [{ "nameIncludes": "churro", "qty": 3, "unitCents": 500 }]
+    },
+    {
+      "id": "en-5",
+      "language": "en",
+      "transcript": "a quesadilla and a mexican coke, that's it",
+      "expected": [
+        { "nameIncludes": "quesadilla", "qty": 1, "unitCents": 650 },
+        { "nameIncludes": "coke", "qty": 1, "unitCents": 300 }
+      ]
+    },
+    {
+      "id": "es-1",
+      "language": "es",
+      "transcript": "dos tacos de pastor y una agua fresca",
+      "expected": [
+        { "nameIncludes": "pastor", "qty": 2, "unitCents": 450 },
+        { "nameIncludes": "agua", "qty": 1, "unitCents": 300 }
+      ]
+    },
+    {
+      "id": "es-2",
+      "language": "es",
+      "transcript": "dos con cincuenta por el elote",
+      "expected": [{ "nameIncludes": "elote", "qty": 1, "unitCents": 250 }]
+    },
+    {
+      "id": "es-3",
+      "language": "es",
+      "transcript": "tres tortas a ocho cada una",
+      "expected": [{ "nameIncludes": "torta", "qty": 3, "unitCents": 800 }]
+    },
+    {
+      "id": "es-4",
+      "language": "es",
+      "transcript": "un burrito y dos elotes",
+      "expected": [
+        { "nameIncludes": "burrito", "qty": 1, "unitCents": 950 },
+        { "nameIncludes": "elote", "qty": 2, "unitCents": 400 }
+      ]
+    },
+    {
+      "id": "pl-1",
+      "language": "pl",
+      "transcript": "dwa kilo pomidorów po cztery",
+      "expected": [{ "nameIncludes": "pomidor", "qty": 2, "unitCents": 400 }]
+    },
+    {
+      "id": "pl-2",
+      "language": "pl",
+      "transcript": "trzy tacos de carnitas i jedna horchata",
+      "expected": [
+        { "nameIncludes": "carnitas", "qty": 3, "unitCents": 450 },
+        { "nameIncludes": "horchata", "qty": 1, "unitCents": 350 }
+      ]
+    },
+    {
+      "id": "pl-3",
+      "language": "pl",
+      "transcript": "jeden burrito za dziesięć dolarów",
+      "expected": [{ "nameIncludes": "burrito", "qty": 1, "unitCents": 1000 }]
+    }
+  ]
+}

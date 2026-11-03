@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "eval:parse": "tsx scripts/eval-parse.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.96",
