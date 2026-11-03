@@ -10,6 +10,9 @@ function roundHalfUp(x: number): number {
   return Math.floor(x + 0.5);
 }
 
+// Parts per million: covers tax rates with up to six decimal places.
+const RATE_SCALE = 1_000_000;
+
 export function computeTotals(
   lines: Line[],
   taxRate: number,
@@ -23,6 +26,11 @@ export function computeTotals(
   let subtotalCents = 0;
   let taxableSubtotalCents = 0;
   for (const line of lines) {
+    if (!Number.isInteger(line.qty) || !Number.isInteger(line.unitCents)) {
+      throw new RangeError(
+        `line "${line.name}" needs integer qty and unitCents, got ${line.qty} and ${line.unitCents}`,
+      );
+    }
     const lineCents = line.qty * line.unitCents;
     subtotalCents += lineCents;
     if (line.taxable) {
@@ -30,7 +38,13 @@ export function computeTotals(
     }
   }
 
-  const taxCents = roundHalfUp(taxableSubtotalCents * taxRate);
+  // Tax in integer math: round(taxable * rate) = floor((2*taxable*bp + S) / (2*S))
+  // where bp = rate in parts per million and S = RATE_SCALE. Avoids float
+  // multiplication, which lands just below .5 at exact half-cent boundaries.
+  const rateParts = Math.round(taxRate * RATE_SCALE);
+  const taxCents = Math.floor(
+    (2 * taxableSubtotalCents * rateParts + RATE_SCALE) / (2 * RATE_SCALE),
+  );
   const tipCents =
     tipPct === null ? 0 : roundHalfUp((subtotalCents * tipPct) / 100);
 

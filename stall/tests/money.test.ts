@@ -62,6 +62,35 @@ describe("computeTotals", () => {
     });
   });
 
+  it("rounds half-cent tax up where float multiplication lands just below .5", () => {
+    // 360 * 0.0875 = 31.5 exactly; float multiply gives 31.499999999999996
+    const burrito: Line[] = [
+      { name: "Burrito", qty: 1, unitCents: 360, taxable: true },
+    ];
+    expect(computeTotals(burrito, 0.0875, null).taxCents).toBe(32);
+
+    // 1400 * 0.0875 = 122.5 -> 123
+    const combo: Line[] = [
+      { name: "Combo", qty: 1, unitCents: 1400, taxable: true },
+    ];
+    expect(computeTotals(combo, 0.0875, null).taxCents).toBe(123);
+
+    // 111000 * 0.0735 = 8158.5 -> 8159
+    const catering: Line[] = [
+      { name: "Catering", qty: 1, unitCents: 111000, taxable: true },
+    ];
+    expect(computeTotals(catering, 0.0735, null).taxCents).toBe(8159);
+  });
+
+  it("rejects non-integer quantities and unit prices", () => {
+    expect(() =>
+      computeTotals([{ name: "Taco", qty: 1.5, unitCents: 450, taxable: true }], 0.0825, null),
+    ).toThrow(RangeError);
+    expect(() =>
+      computeTotals([{ name: "Taco", qty: 1, unitCents: 449.5, taxable: true }], 0.0825, null),
+    ).toThrow(RangeError);
+  });
+
   it("returns all zeros for no lines", () => {
     expect(computeTotals([], 0.0825, 20)).toEqual({
       subtotalCents: 0,
