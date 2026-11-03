@@ -72,8 +72,9 @@ export function findDuplicateBill(
   const note = normalizeNote(bill.note ?? "");
 
   return paidBills.find((paid) => {
+    if (paid.id === bill.id) return false;
     if (paid.payeeId !== bill.payee.id) return false;
-    if (paid.date < windowStart) return false;
+    if (paid.date < windowStart || paid.date > today) return false;
     // |a - p| <= 10% of p, computed in integers to avoid float drift.
     const closeAmount = Math.abs(bill.amountCents - paid.amountCents) * 10 <= paid.amountCents;
     const sameNote = note !== "" && normalizeNote(paid.note) === note;
@@ -87,11 +88,10 @@ function payableAmount(obligation: Obligation): number | null {
   return obligation.amountCents;
 }
 
-function evaluateOne(
-  obligation: Obligation,
-  input: EvaluateInput,
-  runningPayTotal: number,
-): RuleOutcome {
+/** Mutable per-run state: money paid so far today per payee, and the business total. */
+type RunState = { payeeTotals: Record<string, number>; runningPayTotal: number };
+
+function evaluateOne(obligation: Obligation, input: EvaluateInput, state: RunState): RuleOutcome {
   const { payee } = obligation;
   const name = payee.name;
   const outcome = (
@@ -116,6 +116,13 @@ function evaluateOne(
     return outcome(
       "hold",
       `Shift logged for ${name}, but no daily rate configured; set one before this can be paid.`,
+      { decisionType: "over_limit" },
+    );
+  }
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    return outcome(
+      "hold",
+      `Held for review: invalid amount (${amountCents} cents) for ${name}.`,
       { decisionType: "over_limit" },
     );
   }
@@ -147,17 +154,17 @@ function evaluateOne(
     );
   }
 
-  const paidToday = input.paidTodayByPayee[payee.id] ?? 0;
-  const remainingForPayee = payee.maxPerDayCents - paidToday;
+  const paidSoFar = state.payeeTotals[payee.id] ?? 0;
+  const remainingForPayee = payee.maxPerDayCents - paidSoFar;
   if (amountCents > remainingForPayee) {
     return outcome(
       "hold",
-      `${fmt(amountCents)} would exceed ${name}'s daily limit of ${fmt(payee.maxPerDayCents)} with ${fmt(paidToday)} already paid today.`,
+      `${fmt(amountCents)} would exceed ${name}'s remaining daily allowance of ${fmt(Math.max(remainingForPayee, 0))} (daily limit ${fmt(payee.maxPerDayCents)}).`,
       { decisionType: "over_limit" },
     );
   }
 
-  if (runningPayTotal + amountCents > input.businessDailyCapCents) {
+  if (state.runningPayTotal + amountCents > input.businessDailyCapCents) {
     return outcome(
       "hold",
       `${fmt(amountCents)} would take today's total past the ${fmt(input.businessDailyCapCents)} business daily cap.`,
@@ -178,12 +185,19 @@ function evaluateOne(
  */
 export function evaluateObligations(input: EvaluateInput): RuleOutcome[] {
   const results: RuleOutcome[] = [];
-  let runningPayTotal = 0;
+  // Money already paid today counts toward both each payee's limit and the business cap.
+  const state: RunState = {
+    payeeTotals: { ...input.paidTodayByPayee },
+    runningPayTotal: Object.values(input.paidTodayByPayee).reduce((sum, c) => sum + c, 0),
+  };
 
   for (const obligation of input.obligations) {
-    const result = evaluateOne(obligation, input, runningPayTotal);
+    const result = evaluateOne(obligation, input, state);
     if (result.verdict === "pay") {
-      runningPayTotal += payableAmount(obligation) ?? 0;
+      const amount = payableAmount(obligation) ?? 0;
+      state.runningPayTotal += amount;
+      state.payeeTotals[obligation.payee.id] =
+        (state.payeeTotals[obligation.payee.id] ?? 0) + amount;
     }
     results.push(result);
   }

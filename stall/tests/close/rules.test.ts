@@ -221,9 +221,77 @@ describe("evaluateObligations", () => {
     expect(outcome?.decisionType).toBe("duplicate_bill");
     expect(outcome?.evidence?.paidBillId).toBe("bill-paid-1");
   });
+
+  it("holds a second same-payee auto-pay obligation that exceeds the remaining daily allowance", () => {
+    const input = baseInput();
+    input.obligations = [shift(maria), bill(maria, 12000, "limes")];
+    input.paidBills = [];
+
+    const [first, second] = evaluateObligations(input);
+
+    expect(first?.verdict).toBe("pay");
+    expect(second?.verdict).toBe("hold");
+    expect(second?.decisionType).toBe("over_limit");
+    expect(second?.reason).toContain("$30.00");
+  });
+
+  it("counts money already paid today toward the business cap", () => {
+    const helper = makePayee({
+      id: "payee-ana",
+      name: "Ana",
+      dailyRateCents: 8000,
+      maxPerDayCents: 15000,
+    });
+    const input = baseInput();
+    input.obligations = [shift(helper)];
+    input.paidBills = [];
+    input.paidTodayByPayee = { "payee-other": 15000 };
+    input.businessDailyCapCents = 20000;
+
+    const [outcome] = evaluateObligations(input);
+
+    expect(outcome?.verdict).toBe("hold");
+    expect(outcome?.decisionType).toBe("over_limit");
+  });
+
+  it.each([0, -500])("holds a bill with invalid amount %i as over_limit", (amountCents) => {
+    const input = baseInput();
+    input.obligations = [bill(maria, amountCents, "limes")];
+    input.paidBills = [];
+
+    const [outcome] = evaluateObligations(input);
+
+    expect(outcome?.verdict).toBe("hold");
+    expect(outcome?.decisionType).toBe("over_limit");
+    expect(outcome?.reason).toContain("invalid amount");
+  });
+
+  it("holds a shift whose daily rate is negative as an invalid amount", () => {
+    const negativeMaria = makePayee({ ...maria, dailyRateCents: -500 });
+    const input = baseInput();
+    input.obligations = [shift(negativeMaria)];
+    input.paidBills = [];
+
+    const [outcome] = evaluateObligations(input);
+
+    expect(outcome?.verdict).toBe("hold");
+    expect(outcome?.reason).toContain("invalid amount");
+  });
 });
 
 describe("findDuplicateBill", () => {
+  it("ignores a paid bill with the same id as the evaluated bill", () => {
+    const self: PaidBill = { ...paidTortillas, id: "bill-open-1" };
+
+    expect(findDuplicateBill(bill(rosa, 24000, "tortillas"), [self], TODAY)).toBeUndefined();
+  });
+
+  it("ignores a paid bill dated after today", () => {
+    const future: PaidBill = { ...paidTortillas, date: "2026-11-05" };
+
+    expect(findDuplicateBill(bill(rosa, 24000, "tortillas"), [future], TODAY)).toBeUndefined();
+  });
+
   it("matches an amount within 10% for the same payee within 7 days", () => {
     const candidate = bill(rosa, 25000, "limes");
 
