@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadEnv } from "@/lib/env";
+import { env, loadEnv } from "@/lib/env";
 
 const validSample = {
   PAYPAL_CLIENT_ID: "client-id",
@@ -28,5 +28,37 @@ describe("loadEnv", () => {
     expect(() => loadEnv({ ...validSample, PAYPAL_ENV: "prod" })).toThrow(
       /PAYPAL_ENV/,
     );
+  });
+
+  it("accepts PAYPAL_ENV=live", () => {
+    expect(loadEnv({ ...validSample, PAYPAL_ENV: "live" }).PAYPAL_ENV).toBe(
+      "live",
+    );
+  });
+
+  it("lists every required variable when all are missing", () => {
+    let message = "";
+    try {
+      loadEnv({});
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    for (const name of Object.keys(validSample)) {
+      expect(message).toContain(name);
+    }
+  });
+});
+
+describe("env", () => {
+  it("does not validate on import or on promise/symbol probes, only on access", () => {
+    const saved = { ...process.env };
+    for (const name of Object.keys(validSample)) delete process.env[name];
+    try {
+      expect(() => String(Object.prototype.toString.call(env))).not.toThrow();
+      expect((env as unknown as { then?: unknown }).then).toBeUndefined();
+      expect(() => env.PAYPAL_CLIENT_ID).toThrow(/PAYPAL_CLIENT_ID/);
+    } finally {
+      process.env = saved;
+    }
   });
 });

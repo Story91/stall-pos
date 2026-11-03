@@ -32,6 +32,9 @@ export function loadEnv(source: Record<string, string | undefined>): Env {
 let cached: Env | undefined;
 export const env: Env = new Proxy({} as Env, {
   get(_target, prop) {
+    // Symbols and "then" are probed by await, console.log and pretty-printers;
+    // answering them must not trigger validation.
+    if (typeof prop === "symbol" || prop === "then") return undefined;
     cached ??= loadEnv(process.env);
     return cached[prop as keyof Env];
   },
