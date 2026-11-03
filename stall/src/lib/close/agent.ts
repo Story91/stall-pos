@@ -50,8 +50,13 @@ function cleanLabel(text: string, max = MAX_LABEL): string {
   return text.replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+/** The one payout batch id scheme, shared by the close agent and owner approvals. */
+export function obligationBatchId(businessId: string, kind: "shift" | "bill", id: string): string {
+  return `stall-${businessId}-${kind}-${id}`;
+}
+
 export function batchIdFor(businessId: string, outcome: RuleOutcome): string {
-  return `stall-${businessId}-${outcome.obligation.kind}-${outcome.obligation.id}`;
+  return obligationBatchId(businessId, outcome.obligation.kind, outcome.obligation.id);
 }
 
 export function record(state: CloseState, toolName: string, input: unknown, result: unknown): void {

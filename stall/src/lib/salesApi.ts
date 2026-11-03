@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Db } from "@/db";
 import { listCatalog } from "@/lib/catalog";
+import { ApiError } from "@/lib/apiError";
 import { LANGUAGES } from "@/lib/parse/schema";
 import { parseSale } from "@/lib/parse/parseSale";
 import { PayPalError } from "@/lib/paypal/client";
@@ -133,6 +134,9 @@ export function toResponse(error: unknown): Response {
       { error: "invalid_request", issues: error.issues },
       { status: 400 },
     );
+  }
+  if (error instanceof ApiError) {
+    return Response.json({ error: error.code, ...error.extra }, { status: error.status });
   }
   if (error instanceof ParseFailedError) {
     console.error(error);
