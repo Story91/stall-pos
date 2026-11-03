@@ -1,4 +1,5 @@
 import type { Language } from "@/lib/parse/schema";
+import { LANG_TAGS } from "@/lib/voice/speak";
 
 export type TranscriptionError = "unsupported" | "denied" | "no-speech";
 
@@ -37,8 +38,6 @@ type SpeechWindow = {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
-const LANG_TAGS: Record<Language, string> = { en: "en-US", es: "es-US", pl: "pl-PL" };
-
 function getRecognitionConstructor(): SpeechRecognitionConstructor | undefined {
   if (typeof window === "undefined") return undefined;
   const w = window as unknown as SpeechWindow;
@@ -72,6 +71,7 @@ export function startTranscription(opts: TranscriptionOptions): TranscriptionHan
   let settled = false;
 
   recognition.onresult = (ev) => {
+    if (settled) return;
     const alternative = ev.results[ev.results.length - 1]?.[0];
     if (!alternative) return;
     settled = true;
@@ -81,6 +81,8 @@ export function startTranscription(opts: TranscriptionOptions): TranscriptionHan
   recognition.onerror = (ev) => {
     if (settled) return;
     settled = true;
+    // Chrome fires "aborted" when we cancel on purpose; that is not a failure.
+    if (ev.error === "aborted") return;
     opts.onError(mapErrorCode(ev.error));
   };
 
@@ -94,6 +96,8 @@ export function startTranscription(opts: TranscriptionOptions): TranscriptionHan
 
   return {
     stop() {
+      // Mark settled first so the "aborted" error and onend that follow are silent.
+      settled = true;
       recognition.abort();
     },
   };

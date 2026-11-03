@@ -138,6 +138,38 @@ describe("startTranscription", () => {
     expect(onError).toHaveBeenCalledExactlyOnceWith("no-speech");
   });
 
+  it("stays silent when stop() aborts the session", () => {
+    const onError = vi.fn();
+    const onResult = vi.fn();
+    const handle = startTranscription({ language: "en", onResult, onError });
+
+    handle.stop();
+    lastInstance().onerror?.({ error: "aborted" });
+    lastInstance().onend?.({});
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(onResult).not.toHaveBeenCalled();
+  });
+
+  it("ignores a bare aborted error that was not caused by stop()", () => {
+    const onError = vi.fn();
+    startTranscription({ language: "en", onResult: vi.fn(), onError });
+
+    lastInstance().onerror?.({ error: "aborted" });
+
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("drops a late result that arrives after stop()", () => {
+    const onResult = vi.fn();
+    const handle = startTranscription({ language: "en", onResult, onError: vi.fn() });
+
+    handle.stop();
+    lastInstance().onresult?.(resultEvent("late words"));
+
+    expect(onResult).not.toHaveBeenCalled();
+  });
+
   it("reports a single no-speech when the session ends without a result", () => {
     const onError = vi.fn();
     const onResult = vi.fn();
