@@ -10,7 +10,7 @@ Deadline: **Nov 12, 2026, 12:00 PT (21:00 Warsaw)**. Nine days from Nov 3. Every
 - `.claude/skills/` — project skills: PayPal sandbox, Agent Toolkit, hackathon judging, demo video.
 - `.claude/agents/hackathon-judge.md` — a reviewer agent that scores the project against the five official criteria.
 - `scripts/` — sandbox helpers (token, smoke test).
-- App code goes in `app/` (one Next.js project) once the idea is chosen. Do not scaffold it before the design doc is approved.
+- App code goes in `stall/` (one Next.js project). Design: `docs/superpowers/specs/2026-11-03-stall-design.md` (v2, approved). Plan: `docs/superpowers/plans/2026-11-03-stall.md`. Work task by task from the plan.
 
 ## Judging criteria (equal weight) — design every feature against these
 
@@ -23,10 +23,10 @@ Deadline: **Nov 12, 2026, 12:00 PT (21:00 Warsaw)**. Nine days from Nov 3. Every
 ## Stack (decided; change only with a reason written in the design doc)
 
 - **Runtime**: Node 26, TypeScript strict, pnpm or npm (use what's installed: npm 11).
-- **App**: Next.js App Router (latest stable), React, Tailwind. One repo, `app/` folder. Server code in route handlers / server actions; long-running agent loops in a separate worker if needed.
+- **App**: Next.js App Router (latest stable), React, Tailwind. One repo, `stall/` folder. Server code in route handlers / server actions; long-running agent loops in a separate worker if needed.
 - **AI**: Vercel AI SDK 7 (`ai` package) with Claude via `anthropic/claude-sonnet-5-5` (AI Gateway string) or `@ai-sdk/anthropic` direct with `claude-sonnet-5-5`; use `claude-opus-5-5` only for the hardest judgment step if latency allows. Tool calling via `generateText`/`streamText` with `maxSteps`.
 - **PayPal**: `@paypal/agent-toolkit` (`/ai-sdk` subpath) for the 43 built-in tools **plus our own tools** for anything it lacks (Payouts, webhooks, platform fees) written against REST with a tiny typed client (`lib/paypal/client.ts`): token cache + refresh, `PayPal-Request-Id` on every POST, zod-validated responses.
-- **DB**: Postgres on Render (or Neon) via Drizzle. SQLite is acceptable for local dev only if the schema is identical.
+- **DB**: Postgres on Neon via Drizzle (`pg` driver); PGlite in tests. Money as integer cents.
 - **UI data**: AG Grid (Community; Enterprise trial if a feature needs it) — target the sponsor prize.
 - **Hosting**: Render (web service + Postgres + cron). Vercel is a fallback for the frontend only.
 - **Tests**: Vitest for units (PayPal client with recorded fixtures, policy/limits logic, AI output parsers). One Playwright smoke test for the happy path if time allows.
