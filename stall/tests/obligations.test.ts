@@ -54,6 +54,8 @@ describe("logBill", () => {
     const base = { payeeId: rosaId, note: "x", date: "2031-01-05" };
     await expect(logBill(db, businessId, { ...base, amountCents: 0 })).rejects.toThrow();
     await expect(logBill(db, businessId, { ...base, amountCents: 10.5 })).rejects.toThrow();
+    await expect(logBill(db, businessId, { ...base, amountCents: 500_001 })).rejects.toThrow();
+    await expect(logBill(db, businessId, { ...base, amountCents: 500_000 })).resolves.toBeDefined();
     await expect(
       logBill(db, businessId, { ...base, amountCents: 100, note: "n".repeat(141) }),
     ).rejects.toThrow();

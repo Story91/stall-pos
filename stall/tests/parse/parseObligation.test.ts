@@ -62,6 +62,11 @@ describe("parseObligation", () => {
     expect(r).toEqual({ kind: "bill", payeeId: "p-rosa", note: "tortillas" });
   });
 
+  it("drops an amount above the $5,000 bill cap", async () => {
+    const r = await run({ kind: "bill", payeeName: "Rosa", amountDollars: 5000.01, note: "x" });
+    expect(r).toEqual({ kind: "bill", payeeId: "p-rosa", note: "x" });
+  });
+
   it("wraps the transcript in a data block and strips smuggled closing tags", async () => {
     let prompt: unknown;
     await parseObligation(

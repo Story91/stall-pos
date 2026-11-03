@@ -183,8 +183,13 @@ describe("resolveDecision approve", () => {
     const createPayout = vi.fn(async (input: PayoutInput) => {
       throw new PayoutDuplicateError(input.batchId);
     });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await resolveDecision(db, { createPayout }, decision.id, "approve");
-    expect(result.ok).toBe(false);
+    expect(spy).toHaveBeenCalledWith("payout unrecorded", {
+      batchId: `stall-${businessId}-bill-${bill.id}`,
+    });
+    spy.mockRestore();
+    expect(result).toEqual({ ok: false, error: "payout_exists_unrecorded" });
     expect(await billStatus(bill.id)).toBe("held");
     expect(await decisionStatus(decision.id)).toBe("open");
   });
@@ -202,10 +207,58 @@ describe("resolveDecision approve", () => {
     const createPayout = vi.fn(async (input: PayoutInput) => {
       throw new PayoutDuplicateError(input.batchId);
     });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await resolveDecision(db, { createPayout }, decision.id, "approve");
+    spy.mockRestore();
     expect(result.ok).toBe(false);
     expect(await billStatus(bill.id)).toBe("held");
     expect(await decisionStatus(decision.id)).toBe("open");
+  });
+
+  it("a live payout already on record skips PayPal and just settles", async () => {
+    const { bill, decision } = await heldBill();
+    await db.insert(payouts).values({
+      businessId,
+      billId: bill.id,
+      batchId: `stall-${businessId}-bill-${bill.id}`,
+      paypalBatchId: "PB-LIVE",
+      amountCents: 90000,
+      status: "PENDING",
+      rationale: "earlier",
+    });
+    const createPayout = okPayout();
+    const result = await resolveDecision(db, { createPayout }, decision.id, "approve");
+    expect(createPayout).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ ok: true, decision: { status: "approved" }, payout: { paypalBatchId: "PB-LIVE" } });
+    expect(await billStatus(bill.id)).toBe("paid");
+    expect(await db.select().from(payouts).where(eq(payouts.billId, bill.id))).toHaveLength(1);
+  });
+
+  it("if settling fails after PayPal paid, the payout row persists and a retry pays nothing more", async () => {
+    const { bill, decision } = await heldBill();
+    const flaky = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "transaction") {
+          return async () => {
+            throw new Error("db went away");
+          };
+        }
+        const value = Reflect.get(target, prop) as unknown;
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const createPayout = okPayout();
+    await expect(resolveDecision(flaky, { createPayout }, decision.id, "approve")).rejects.toThrow("db went away");
+    expect(createPayout).toHaveBeenCalledTimes(1);
+    const rows = await db.select().from(payouts).where(eq(payouts.billId, bill.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "PENDING", paypalBatchId: expect.stringMatching(/^PB-/) });
+    expect(await decisionStatus(decision.id)).toBe("open");
+
+    const retry = await resolveDecision(db, { createPayout }, decision.id, "approve");
+    expect(retry).toMatchObject({ ok: true, decision: { status: "approved" }, payout: { id: rows[0]!.id } });
+    expect(createPayout).toHaveBeenCalledTimes(1);
+    expect(await billStatus(bill.id)).toBe("paid");
   });
 });
 
@@ -228,6 +281,34 @@ describe("resolveDecision decline and mark_paid", () => {
     expect(createPayout).not.toHaveBeenCalled();
     expect(await billStatus(bill.id)).toBe("paid");
     expect(await db.select().from(payouts).where(eq(payouts.billId, bill.id))).toHaveLength(0);
+  });
+
+  it("decline and mark_paid refuse a bill that is already paid or has a live payout", async () => {
+    const createPayout = okPayout();
+    const paid = await heldBill();
+    await db.update(bills).set({ status: "paid" }).where(eq(bills.id, paid.bill.id));
+    expect(await resolveDecision(db, { createPayout }, paid.decision.id, "decline")).toEqual({
+      ok: false,
+      error: "already_paid",
+    });
+    expect(await billStatus(paid.bill.id)).toBe("paid");
+
+    const live = await heldBill();
+    await db.insert(payouts).values({
+      businessId,
+      billId: live.bill.id,
+      batchId: `stall-${businessId}-bill-${live.bill.id}`,
+      amountCents: 90000,
+      status: "SUCCESS",
+      rationale: "earlier",
+    });
+    expect(await resolveDecision(db, { createPayout }, live.decision.id, "mark_paid")).toEqual({
+      ok: false,
+      error: "already_paid",
+    });
+    expect(await billStatus(live.bill.id)).toBe("held");
+    expect(await decisionStatus(live.decision.id)).toBe("open");
+    expect(createPayout).not.toHaveBeenCalled();
   });
 
   it("an unknown or malformed decision id is not_found", async () => {

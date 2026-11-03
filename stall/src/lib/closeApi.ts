@@ -121,6 +121,7 @@ export async function dayFor(db: Db, date: string) {
 const FAILURE_STATUS: Record<string, number> = {
   not_found: 404,
   already_resolved: 409,
+  already_paid: 409,
   paypal: 502,
 };
 

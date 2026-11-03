@@ -5,7 +5,7 @@ import { agentRuns, bills, decisions, payees, payouts, sales, shifts } from "@/d
 import { ApiError } from "@/lib/apiError";
 import { businessDate } from "@/lib/dates";
 
-export const MAX_BILL_CENTS = 10_000_000;
+export const MAX_BILL_CENTS = 500_000;
 
 export const isoDate = z
   .string()

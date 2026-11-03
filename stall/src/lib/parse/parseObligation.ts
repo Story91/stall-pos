@@ -1,12 +1,12 @@
 import { generateText, Output, type LanguageModel } from "ai";
 import { z } from "zod";
 import { getModel } from "@/lib/ai/model";
+import { MAX_BILL_CENTS } from "@/lib/obligations";
 import type { Language } from "./schema";
 
 const LANGUAGE_NAMES: Record<Language, string> = { en: "English", es: "Spanish", pl: "Polish" };
 
 const MAX_NOTE = 140;
-const MAX_CENTS = 10_000_000;
 
 /** Lenient on purpose: bad values are dropped in post-processing, never thrown. */
 const llmSchema = z.object({
@@ -95,7 +95,7 @@ export async function parseObligation(
   const dollars = output.amountDollars;
   if (typeof dollars === "number" && Number.isFinite(dollars) && dollars > 0) {
     const cents = Math.round(dollars * 100);
-    if (cents > 0 && cents <= MAX_CENTS) result.amountCents = cents;
+    if (cents > 0 && cents <= MAX_BILL_CENTS) result.amountCents = cents;
   }
   const note = oneLine(output.note ?? "", MAX_NOTE);
   if (note !== "") result.note = note;
