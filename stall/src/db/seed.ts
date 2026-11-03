@@ -1,0 +1,168 @@
+import { createHash } from "node:crypto";
+import { computeTotals, type Line } from "@/lib/money";
+import type { Db } from "./index";
+import {
+  agentRuns,
+  bills,
+  businesses,
+  catalogItems,
+  decisions,
+  payees,
+  payouts,
+  sales,
+  shifts,
+  webhookEvents,
+} from "./schema";
+import { CATALOG, SALE_COMBOS } from "./seed-data";
+
+const TZ = "America/Chicago";
+const TAX_RATE = 0.0825;
+const HISTORY_DAYS = 7;
+
+// Task 5 replaces this with the shared helper in lib/dates.ts.
+function businessDate(now: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(now);
+}
+
+function shiftDate(date: string, deltaDays: number): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + deltaDays)).toISOString().slice(0, 10);
+}
+
+export async function seed(
+  db: Db,
+): Promise<{ businessId: string; payees: { maria: string; rosa: string } }> {
+  const today = businessDate(new Date(), TZ);
+
+  return db.transaction(async (tx) => {
+    // Clear in dependency order so the seed can be re-run.
+    await tx.delete(webhookEvents);
+    await tx.delete(agentRuns);
+    await tx.delete(decisions);
+    await tx.delete(payouts);
+    await tx.delete(bills);
+    await tx.delete(shifts);
+    await tx.delete(sales);
+    await tx.delete(catalogItems);
+    await tx.delete(payees);
+    await tx.delete(businesses);
+
+    const [business] = await tx
+      .insert(businesses)
+      .values({
+        name: "La Esquina",
+        currency: "USD",
+        taxRate: String(TAX_RATE),
+        tz: TZ,
+        ownerPinHash: createHash("sha256").update("1234").digest("hex"),
+      })
+      .returning({ id: businesses.id });
+    const businessId = business!.id;
+
+    await tx.insert(catalogItems).values(
+      CATALOG.map((item) => ({
+        businessId,
+        name: item.name,
+        aliases: [item.alias],
+        defaultPriceCents: item.priceCents,
+        taxable: true,
+        sightings: 0,
+      })),
+    );
+
+    const [maria, rosa] = await tx
+      .insert(payees)
+      .values([
+        {
+          businessId,
+          name: "Maria",
+          email: "maria@stall.example",
+          role: "helper" as const,
+          dailyRateCents: 12000,
+          maxPerDayCents: 15000,
+          autoPay: true,
+        },
+        {
+          businessId,
+          name: "Tortillería Rosa",
+          email: "rosa@stall.example",
+          role: "supplier" as const,
+          dailyRateCents: null,
+          maxPerDayCents: 20000,
+          autoPay: false,
+        },
+      ])
+      .returning({ id: payees.id });
+
+    await tx
+      .insert(shifts)
+      .values({ businessId, payeeId: maria!.id, date: today });
+
+    const [paidBill] = await tx
+      .insert(bills)
+      .values({
+        businessId,
+        payeeId: rosa!.id,
+        amountCents: 24000,
+        note: "tortillas",
+        date: shiftDate(today, -2),
+        status: "paid",
+      })
+      .returning({ id: bills.id });
+    await tx.insert(payouts).values({
+      businessId,
+      billId: paidBill!.id,
+      batchId: `stall-${businessId}-bill-${paidBill!.id}`,
+      amountCents: 24000,
+      status: "SUCCESS",
+      rationale: "Seed: paid tortilla delivery",
+    });
+    await tx.insert(bills).values({
+      businessId,
+      payeeId: rosa!.id,
+      amountCents: 24000,
+      note: "tortillas",
+      date: today,
+      status: "open",
+    });
+
+    // History: 3-6 paid sales per past day, cycled deterministically.
+    const priceByName = new Map(CATALOG.map((c) => [c.name, c.priceCents]));
+    const history: (typeof sales.$inferInsert)[] = [];
+    let n = 0;
+    for (let daysAgo = 1; daysAgo <= HISTORY_DAYS; daysAgo++) {
+      const date = shiftDate(today, -daysAgo);
+      const count = 3 + (daysAgo % 4);
+      for (let i = 0; i < count; i++) {
+        n++;
+        const combo = SALE_COMBOS[(n * 5 + daysAgo) % SALE_COMBOS.length]!;
+        const language = n % 3 === 0 ? "es" : "en";
+        const lines: Line[] = combo.items.map(([name, qty]) => ({
+          name,
+          qty,
+          unitCents: priceByName.get(name)!,
+          taxable: true,
+        }));
+        const totals = computeTotals(lines, TAX_RATE, null);
+        history.push({
+          businessId,
+          draftId: `seed-draft-${n}`,
+          invoiceId: `INV2-SEED-${n}`,
+          invoiceNumber: `SEED-${n}`,
+          status: n % 5 === 0 ? "paid_cash" : "paid",
+          lines,
+          subtotalCents: totals.subtotalCents,
+          taxCents: totals.taxCents,
+          tipCents: totals.tipCents,
+          totalCents: totals.totalCents,
+          language,
+          transcript: language === "es" ? combo.es : combo.en,
+          paidAt: new Date(Date.parse(`${date}T17:00:00Z`) + i * 47 * 60_000),
+        });
+      }
+    }
+    await tx.insert(sales).values(history);
+
+    return { businessId, payees: { maria: maria!.id, rosa: rosa!.id } };
+  });
+}
