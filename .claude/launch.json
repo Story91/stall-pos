@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "stall-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "stall", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

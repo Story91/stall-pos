@@ -54,8 +54,12 @@ const sent = await pp('GET', `/v2/invoicing/invoices/${invoiceId}`);
 const payLink = sent.detail?.metadata?.recipient_view_url;
 ok(`status ${sent.status}, total ${sent.amount?.value} ${sent.amount?.currency_code}`);
 if (payLink) console.log(`  → customer pay link: ${payLink}`);
-const qr = await pp('POST', `/v2/invoicing/invoices/${invoiceId}/generate-qr-code`, { width: 300, height: 300 });
-ok(`QR code received (${typeof qr === 'string' ? qr.length : JSON.stringify(qr).length} chars base64)`);
+const qrRes = await fetch(`${HOST}/v2/invoicing/invoices/${invoiceId}/generate-qr-code`, { method: "POST", headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ width: 300, height: 300, action: "pay" }) });
+const qrRaw = await qrRes.text();
+// PayPal answers multipart/form-data with one part name="image" whose body is base64 PNG.
+const qrMatch = qrRaw.match(/name="image"[\s\S]*?\r?\n\r?\n([\s\S]*?)\r?\n--/);
+const qr = qrMatch ? qrMatch[1].trim() : qrRaw.replace(/^"|"$/g, "");
+ok(`QR code received (${qr.length} chars base64, content-type ${qrRes.headers.get("content-type")})`);
 
 step('4. List transactions (last 7 days)');
 const end = new Date();
