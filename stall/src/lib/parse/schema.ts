@@ -20,6 +20,8 @@ export const llmOutputSchema = z.object({
       confidence: z.number().describe("0 to 1: how sure you are about this item"),
     }),
   ),
+  // Kept in the schema per the brief but NOT used for audio: parseSale builds the
+  // confirmation from the kept items so it can never name an item that was dropped.
   spokenConfirmation: z
     .string()
     .describe("Short summary of the items in the spoken language, without a total"),
