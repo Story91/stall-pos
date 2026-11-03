@@ -25,7 +25,7 @@ CLAUDE.md                         rules for Claude Code in this project (stack, 
 scripts/get-sandbox-token.ps1|sh  fetch a sandbox bearer token into .env
 scripts/smoke-test.mjs            token → create order → read → transactions → balances
 docs/research/                    01 rules · 02 competition · 03 PayPal tooling · 04 partner tools
-docs/ideas/                       00 shortlist · 01 HireHuman · 02 Upstream · 03 Tanda · 04 Toll · 05 Raincheck
+docs/ideas/                       00 shortlist · 01 HireHuman · 02 Upstream · 03 Tanda · 04 Toll · 05 Raincheck · 06 Understudy · 07 Referee · 08 Stall
 docs/plan/                        timeline · submission checklist · video script · proposed settings.json
 LICENSE                           MIT (required: visible open-source license)
 ```
