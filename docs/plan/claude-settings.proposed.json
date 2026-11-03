@@ -1,0 +1,33 @@
+{
+  "_comment": "Proposed content for .claude/settings.json (Claude Code refuses to write its own settings). Copy manually: cp docs/plan/claude-settings.proposed.json .claude/settings.json — then remove this _comment line.",
+  "permissions": {
+    "allow": [
+      "Bash(npm install*)",
+      "Bash(npm run*)",
+      "Bash(npm test*)",
+      "Bash(npx vitest*)",
+      "Bash(npx tsc*)",
+      "Bash(npx eslint*)",
+      "Bash(npx prettier*)",
+      "Bash(npx drizzle-kit*)",
+      "Bash(node scripts/*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(gh pr*)",
+      "Bash(gh repo view*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./app/.env)",
+      "Bash(git push --force*)",
+      "Bash(rm -rf*)"
+    ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true
+  }
+}
