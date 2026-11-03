@@ -4,8 +4,8 @@ Deadline: **czw. 12 XI 2026, 12:00 PT = 21:00 Warszawa**. Celuj w wysłanie **11
 
 | Dzień | Data | Cel | Definition of done |
 |---|---|---|---|
-| 0 | wt 3 XI | Wybór pomysłu, design doc, sandbox | Pomysł wybrany; `docs/superpowers/specs/*-design.md` napisany; sandbox app + 3 konta testowe; `scripts/smoke-test.mjs` przechodzi |
-| 1 | śr 4 XI | Szkielet + PayPal core | Repo na GitHub (public, MIT), CI zielone; token refresh, Orders v2 create/capture, Payouts batch działają z testami |
+| 0 | wt 3 XI | Wybór pomysłu, design doc, sandbox | Pomysł wybrany (Stall); design doc napisany i zaakceptowany; **sandbox: konto Business z krajem USA + app REST + 3 konta Personal USA** (ręcznie w dashboardzie); `scripts/smoke-test.mjs` przechodzi |
+| 1 | śr 4 XI | Szkielet + PayPal core | Repo na GitHub (public, MIT), CI zielone; token refresh, Invoicing create/send/QR/record_payment, Payouts batch, webhook z weryfikacją podpisu działają z testami |
 | 2 | czw 5 XI | Agent + narzędzia | Agent (Vercel AI SDK + Claude) wywołuje narzędzia PayPal i własne; webhooki z weryfikacją podpisu na Render |
 | 3 | pt 6 XI | Główna pętla produktu | Pełny happy path end-to-end działa lokalnie i na Render |
 | 4 | sob 7 XI | UI + AG Grid | Interfejs kompletny, dashboard AG Grid, "ask the grid"; pierwsza próba nagrania (wykrywa braki) |

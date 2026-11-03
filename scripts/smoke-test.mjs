@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Sandbox smoke test: token → create order → read it back → list recent transactions.
+// Sandbox smoke test: token → create invoice → send + QR → list recent transactions → balances.
 // Usage: node scripts/smoke-test.mjs   (reads .env in repo root; no dependencies)
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -40,19 +40,22 @@ const pp = async (method, path, body, requestId) => {
   return text ? JSON.parse(text) : undefined;
 };
 
-step('2. Create order (CAPTURE, 1.00 USD)');
-const order = await pp('POST', '/v2/checkout/orders', {
-  intent: 'CAPTURE',
-  purchase_units: [{ reference_id: 'smoke', amount: { currency_code: 'USD', value: '1.00' }, description: 'Smoke test order' }],
-  payment_source: { paypal: { experience_context: { return_url: 'https://example.com/return', cancel_url: 'https://example.com/cancel', user_action: 'PAY_NOW' } } },
+step('2. Create draft invoice (1 item, USD)');
+const invoice = await pp('POST', '/v2/invoicing/invoices', {
+  detail: { currency_code: 'USD', invoice_number: `SMOKE-${Date.now()}`, note: 'Stall smoke test' },
+  items: [{ name: 'Taco al pastor', quantity: '2', unit_amount: { currency_code: 'USD', value: '4.50' }, unit_of_measure: 'QUANTITY' }],
 }, randomUUID());
-const approve = order.links?.find((l) => l.rel === 'payer-action' || l.rel === 'approve')?.href;
-ok(`order ${order.id} status ${order.status}`);
-if (approve) console.log(`  → buyer approval URL: ${approve}`);
+const invoiceId = invoice.id ?? invoice.href?.split('/').pop();
+ok(`invoice ${invoiceId} created`);
 
-step('3. Read order back');
-const fetched = await pp('GET', `/v2/checkout/orders/${order.id}`);
-ok(`status ${fetched.status}, amount ${fetched.purchase_units[0].amount.value} ${fetched.purchase_units[0].amount.currency_code}`);
+step('3. Send invoice and generate QR');
+await pp('POST', `/v2/invoicing/invoices/${invoiceId}/send`, { send_to_recipient: false, send_to_invoicer: false });
+const sent = await pp('GET', `/v2/invoicing/invoices/${invoiceId}`);
+const payLink = sent.detail?.metadata?.recipient_view_url;
+ok(`status ${sent.status}, total ${sent.amount?.value} ${sent.amount?.currency_code}`);
+if (payLink) console.log(`  → customer pay link: ${payLink}`);
+const qr = await pp('POST', `/v2/invoicing/invoices/${invoiceId}/generate-qr-code`, { width: 300, height: 300 });
+ok(`QR code received (${typeof qr === 'string' ? qr.length : JSON.stringify(qr).length} chars base64)`);
 
 step('4. List transactions (last 7 days)');
 const end = new Date();
@@ -64,4 +67,5 @@ step('5. Balances');
 const bal = await pp('GET', '/v1/reporting/balances');
 ok(`${bal.balances?.map((b) => `${b.currency}: ${b.total_balance?.value}`).join(', ') || 'no balances returned'}`);
 
-console.log('\nSandbox OK. Payouts/Subscriptions are exercised by the app tests, not here.');
+console.log('\nSandbox OK. Payouts and webhooks are exercised by the app tests, not here.');
+console.log('If the invoice currency or tax display looks wrong, check that the sandbox Business account country is United States.');

@@ -67,7 +67,7 @@ Screens: Sell · Day · Close · Settings. Plus a desktop Dashboard route with A
 ### 6.2 Flows
 
 **Sell flow**
-1. Push-to-talk captures audio via the browser's Web Speech API (Chrome/Android/desktop Chrome; works for en/es/pl/vi/ko). Text fallback field always visible. (Builder may add server-side ASR via an API if Web Speech proves unreliable on the recording device; keep the interface identical.)
+1. Push-to-talk captures audio via the browser's Web Speech API (Android Chrome and desktop Chrome; en/es/pl/vi/ko). **Language is chosen with a visible picker on the Sell screen, not auto-detected** (Web Speech needs `lang` before it starts; the picker is also a good visual for the video). Text fallback field always visible. Server-side ASR (OpenAI or Deepgram speech-to-text, one extra env var, optional) sits behind the same `transcribe()` interface and is required only if the recording phone is an iPhone, where Web Speech is unreliable in PWA mode.
 2. Transcript + catalog + language → Claude → structured items `{ name, qty, unitPrice, taxable, catalogMatch }` with a confidence per item and a spoken-back confirmation string. Low-confidence items are highlighted.
 3. Owner confirms → server computes subtotal, tax (jurisdiction table), tip, total → creates a PayPal invoice (Invoicing v2 via REST, deterministic), sends it, generates the QR → stores Sale with invoice id → returns QR + link.
 4. Customer pays on PayPal's page → webhook `INVOICING.INVOICE.PAID` → signature verified → Sale marked paid → push to the phone (SSE) → voice "Paid, $18.40, thank you".
@@ -80,6 +80,8 @@ Screens: Sell · Day · Close · Settings. Plus a desktop Dashboard route with A
 4. Every tool call is logged with the model's one-sentence rationale (required field in each tool's input). The Close screen renders the log. Approval requests show as cards with Approve/Decline; approving executes the payout.
 5. Summary is spoken (browser TTS) and stored.
 
+**What the agent owes and to whom (source of truth)**: money owed is recorded by the owner, never inferred by the model. Two small entities: `shift` (helper marked present for today on the Day screen or by voice: "Maria worked today") and `bill` (supplier amount logged by voice or form: "I owe Rosa 240 for tortillas", with a photo optional). At close, the agent pays helpers with a shift today up to their daily rate (auto if `auto_pay` and within max), and pays logged bills within rules; anything else becomes an approval request. A day with no sales and no shifts pays nobody. The seed logs Maria's shift and the tortillería bill for the demo day.
+
 **Payout rules** (code, not prompt): payee must exist and be enabled; amount ≤ payee.maxPerDay − paidToday; business-level daily cap; currency USD; idempotent `sender_batch_id` = `close-{date}-{payeeId}`; otherwise → approval request. Webhooks `PAYMENT.PAYOUTS-ITEM.SUCCEEDED|FAILED|UNCLAIMED` update status.
 
 **Tax**: `taxRate(state, localRate)`; bundled table of US state rates (2026 values, cited source in README); per-item `taxable` default from catalog (e.g. in many states unprepared groceries are exempt; the owner marks items). Tax line shown on the invoice as a separate item or using the invoice's tax field per PayPal's schema (builder chooses whichever renders clearly on the PayPal page).
@@ -88,7 +90,7 @@ Screens: Sell · Day · Close · Settings. Plus a desktop Dashboard route with A
 
 ### 6.3 Data model (Postgres via Drizzle)
 
-business, catalog_item, sale (invoice id, status, lines json, subtotal, tax, tip, total, method, language, transcript), payee (name, email, role, max_per_day, auto_pay), payout (batch id, item id, status, rationale, approval state), wholesale_customer (name, email, weekday, lines json), agent_run (date, summary, log json), approval_request, webhook_event (id, type, processed_at) for idempotency, tax_jurisdiction (state, rate, local_rate).
+business, catalog_item, sale (invoice id, status, lines json, subtotal, tax, tip, total, method, language, transcript), payee (name, email, role, daily_rate, max_per_day, auto_pay), shift (payee, date), bill (payee, amount, note, date, status), payout (batch id, item id, status, rationale, approval state), wholesale_customer (name, email, weekday, lines json), agent_run (date, summary, log json), approval_request, webhook_event (id, type, processed_at) for idempotency, tax_jurisdiction (state, rate, local_rate).
 
 ### 6.4 Architecture
 
@@ -96,7 +98,7 @@ business, catalog_item, sale (invoice id, status, lines json, subtotal, tax, tip
 - Server: route handlers for sell/close/webhook/dashboard-query; a `lib/paypal` client (token cache, `PayPal-Request-Id`, zod-validated responses) with modules `invoices.ts`, `payouts.ts`, `webhooks.ts`; `lib/agent` with the close-the-day tools; `lib/tax`; `lib/parse` (speech → items prompt + schema).
 - AI: Vercel AI SDK 7, Claude Sonnet 5.5 for parsing and the close agent; structured outputs via zod; PayPal Agent Toolkit (`/ai-sdk`) supplies invoice reminder/search tools to the agent; the hot sell path uses REST directly for determinism and speed.
 - Realtime to phone: Server-Sent Events from a `/api/events` route; polling fallback.
-- Hosting: Render web service + Render Postgres + Render cron (close-the-day); public webhook URL from Render. Local dev: `cloudflared` tunnel for webhooks, or the dashboard's webhook simulator.
+- Hosting: Render web service (public webhook URL) + Postgres on Neon (Render's free Postgres expires after 30 days, before judging ends) + the 20:00 close triggered by an external scheduler hitting `/api/close?key=…` (Render cron has no free tier). "Run close now" is the demo path. If the author approves a small paid Render plan (see §8), the web service stays warm and the cron runs natively; the code is identical. Local dev: `cloudflared` tunnel for webhooks, or the dashboard's webhook simulator.
 - Tests (Vitest): parse schema + a dozen transcripts in 3 languages (recorded model outputs as fixtures), tax calc, payout rules, webhook signature verification (recorded sandbox payload), invoice payload builder. One Playwright smoke: sell → QR shown.
 
 ### 6.5 Seed / demo data
@@ -118,6 +120,11 @@ A taco truck "La Esquina" in Austin, TX (state 6.25% + local 2% = 8.25%), catalo
 - Tax from a bundled table, not an API (designer's call).
 - LLM parses and decides; code executes money moves deterministically with limits (designer's call).
 - Working name Stall; rename is free until day 6.
+- Owed amounts come from owner-logged shifts and bills, never from model inference (designer's call after builder check).
+- Language picker instead of auto-detect; server ASR optional behind one interface (designer's call).
+- Open, author to decide: (a) recording phone Android or iPhone (iPhone forces server ASR on day 1); (b) hosting budget: free only (Neon + free Render + external ping) or roughly $15 for a paid Render web service + cron through Dec 15.
+
+**Author must do in the PayPal dashboard before day 1 (cannot be automated):** create a sandbox **Business account with country United States** (default sandbox accounts take the developer's country; a PL/PLN account breaks USD invoices and tax display), create the REST app against that US business account, create three US Personal sandbox accounts (customer, Maria, tortillería), put Client ID/Secret in `.env`, and add the webhook once the Render URL exists.
 
 ## 9. Left to the builder
 
