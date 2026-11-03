@@ -8,6 +8,7 @@ function catalogItem(overrides: Partial<CatalogItem> & { id: string; name: strin
     businessId: "biz-1",
     aliases: [],
     defaultPriceCents: null,
+    lastSeenPriceCents: null,
     taxable: true,
     sightings: 0,
     createdAt: new Date("2026-01-01T00:00:00Z"),

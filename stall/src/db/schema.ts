@@ -73,6 +73,7 @@ export const catalogItems = pgTable("catalog_items", {
     .notNull()
     .default(sql`'{}'::text[]`),
   defaultPriceCents: integer("default_price_cents"),
+  lastSeenPriceCents: integer("last_seen_price_cents"),
   taxable: boolean("taxable").notNull().default(true),
   sightings: integer("sightings").notNull().default(0),
   createdAt: createdAt(),

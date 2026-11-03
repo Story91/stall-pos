@@ -34,6 +34,7 @@ const fixture = JSON.parse(
 const catalog: CatalogItem[] = fixture.catalog.map((entry, i) => ({
   id: `eval-${i}`,
   businessId: "eval",
+  lastSeenPriceCents: null,
   sightings: 0,
   createdAt: new Date(0),
   ...entry,
