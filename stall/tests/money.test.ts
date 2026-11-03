@@ -1,0 +1,73 @@
+import { describe, expect, it } from "vitest";
+import { computeTotals, type Line } from "@/lib/money";
+
+const tacoLines: Line[] = [
+  { name: "Taco al pastor", qty: 2, unitCents: 450, taxable: true },
+  { name: "Agua fresca", qty: 1, unitCents: 300, taxable: true },
+];
+
+describe("computeTotals", () => {
+  it("matches the spec example with no tip", () => {
+    expect(computeTotals(tacoLines, 0.0825, null)).toEqual({
+      subtotalCents: 1200,
+      taxCents: 99,
+      tipCents: 0,
+      totalCents: 1299,
+    });
+  });
+
+  it("excludes non-taxable lines from tax", () => {
+    const lines: Line[] = [
+      { name: "Taco al pastor", qty: 2, unitCents: 450, taxable: true },
+      { name: "Bottled water", qty: 1, unitCents: 300, taxable: false },
+    ];
+    // taxable 900 * 0.0825 = 74.25 -> 74
+    expect(computeTotals(lines, 0.0825, null)).toEqual({
+      subtotalCents: 1200,
+      taxCents: 74,
+      tipCents: 0,
+      totalCents: 1274,
+    });
+  });
+
+  it("computes an 18% tip on the pre-tax subtotal", () => {
+    // tip 1200 * 18 / 100 = 216; tax 99; total 1200 + 99 + 216
+    expect(computeTotals(tacoLines, 0.0825, 18)).toEqual({
+      subtotalCents: 1200,
+      taxCents: 99,
+      tipCents: 216,
+      totalCents: 1515,
+    });
+  });
+
+  it("rounds exact half cents up on tax", () => {
+    // taxable 50 * 0.01 = 0.5 cents -> 1 cent
+    const lines: Line[] = [{ name: "Gum", qty: 1, unitCents: 50, taxable: true }];
+    expect(computeTotals(lines, 0.01, null)).toEqual({
+      subtotalCents: 50,
+      taxCents: 1,
+      tipCents: 0,
+      totalCents: 51,
+    });
+  });
+
+  it("rounds exact half cents up on tip", () => {
+    // tip 50 * 15 / 100 = 7.5 cents -> 8 cents
+    const lines: Line[] = [{ name: "Gum", qty: 1, unitCents: 50, taxable: false }];
+    expect(computeTotals(lines, 0, 15)).toEqual({
+      subtotalCents: 50,
+      taxCents: 0,
+      tipCents: 8,
+      totalCents: 58,
+    });
+  });
+
+  it("returns all zeros for no lines", () => {
+    expect(computeTotals([], 0.0825, 20)).toEqual({
+      subtotalCents: 0,
+      taxCents: 0,
+      tipCents: 0,
+      totalCents: 0,
+    });
+  });
+});
