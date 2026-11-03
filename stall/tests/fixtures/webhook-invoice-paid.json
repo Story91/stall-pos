@@ -1,0 +1,15 @@
+{
+  "id": "WH-TEST-1",
+  "event_version": "1.0",
+  "create_time": "2026-11-07T18:00:05.000Z",
+  "resource_type": "invoices",
+  "event_type": "INVOICING.INVOICE.PAID",
+  "summary": "Invoice paid",
+  "resource": {
+    "invoice": {
+      "id": "INV2-REPLACED-IN-TEST",
+      "status": "PAID",
+      "payments": { "transactions": [{ "date": "2026-11-07T18:00:00Z" }] }
+    }
+  }
+}
