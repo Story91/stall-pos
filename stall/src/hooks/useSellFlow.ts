@@ -7,7 +7,7 @@ import type { Language } from "@/lib/parse/schema";
 import { sellApi, type BusinessInfo, type ChargeResponse, type FailureKind } from "@/lib/sell/api";
 import { confirmationText } from "@/lib/sell/confirmationText";
 import { readLanguage, subscribeLanguage, writeLanguage } from "@/lib/sell/languageStore";
-import { rowsToLines, toRows, type ItemRow } from "@/lib/sell/rows";
+import { canCharge, rowsToLines, toRows, type ItemRow } from "@/lib/sell/rows";
 import { speak } from "@/lib/voice/speak";
 import {
   isRecognitionSupported,
@@ -48,6 +48,7 @@ export function useSellFlow() {
   // a different charge body, so it gets a fresh id.
   const draftId = useRef<string | null>(null);
   const attempted = useRef(false);
+  const chargingNow = useRef(false);
   const handle = useRef<TranscriptionHandle | null>(null);
   const parseSeq = useRef(0);
   const lastParse = useRef<{ transcript: string; language: Language } | null>(null);
@@ -63,6 +64,9 @@ export function useSellFlow() {
     };
   }, []);
 
+  // Accepted for the hackathon: if a charge's response was lost ("network") and
+  // the owner then edits, the new draftId can create a second invoice; the Day
+  // view will show the orphan as awaiting.
   const touchTicket = () => {
     if (attempted.current) {
       draftId.current = crypto.randomUUID();
@@ -71,6 +75,8 @@ export function useSellFlow() {
   };
   const setRows = (next: ItemRow[]) => {
     touchTicket();
+    // A "try again" for the old ticket no longer applies to the edited one.
+    setNotice((current) => (current?.kind === "retry" ? null : current));
     setRowsState(next);
   };
   const setTip = (next: TipPct) => {
@@ -131,18 +137,22 @@ export function useSellFlow() {
   };
 
   const charge = async () => {
-    if (charging) return;
+    // Ref, not state: two taps in the same frame both see charging === false.
+    if (chargingNow.current || !canCharge(rows)) return;
+    const lines = rowsToLines(rows);
     draftId.current ??= crypto.randomUUID();
     attempted.current = true;
+    chargingNow.current = true;
     setCharging(true);
     setNotice(null);
     const result = await sellApi.charge({
       draftId: draftId.current,
-      lines: rowsToLines(rows),
+      lines,
       tipPct,
       language: saleLanguage,
       transcript,
     });
+    chargingNow.current = false;
     setCharging(false);
     if (!result.ok) {
       setNotice({
@@ -191,6 +201,7 @@ export function useSellFlow() {
     setTranscript("");
     setMic("idle");
     setParsing(false);
+    chargingNow.current = false;
     setCharging(false);
     setNotice(null);
     setQr(null);
@@ -213,7 +224,6 @@ export function useSellFlow() {
     parsing,
     charging,
     notice,
-    dismissNotice: () => setNotice(null),
     pressStart,
     pressEnd,
     submitText: (text: string) => void parse(text.trim(), language),

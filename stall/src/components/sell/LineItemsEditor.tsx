@@ -3,7 +3,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { TipPct } from "@/components/sell/TipToggle";
 import { computeTotals } from "@/lib/money";
-import { formatCents, parseDollars } from "@/lib/sell/format";
+import { formatCents, MAX_PRICE_CENTS, parseDollars } from "@/lib/sell/format";
 import { canCharge, LOW_CONFIDENCE, type ItemRow } from "@/lib/sell/rows";
 
 const MAX_QTY = 999;
@@ -108,7 +108,9 @@ export function LineItemsEditor({
         )}
       </button>
       {missingPrice && (
-        <p className="-mt-2 text-center text-base font-medium">Add a price to every item to charge.</p>
+        <p className="-mt-2 text-center text-base font-medium">
+          Add a price to every item to charge.
+        </p>
       )}
     </section>
   );
@@ -159,7 +161,10 @@ function Row({ row, open, onToggle, onFocusEditor, onChange, onRemove }: RowProp
       style={{ touchAction: "pan-y" }}
     >
       {dx < 0 && (
-        <div aria-hidden className="absolute inset-0 flex items-center justify-end bg-ink pr-5 text-lg font-semibold text-paper">
+        <div
+          aria-hidden
+          className="absolute inset-0 flex items-center justify-end bg-ink pr-5 text-lg font-semibold text-paper"
+        >
           {dx <= -SWIPE_DELETE_PX ? "Let go to remove" : "Remove"}
         </div>
       )}
@@ -262,25 +267,33 @@ function PriceField({
 }) {
   // Local text so a half-typed "4." is not reformatted under the owner's thumb.
   const [text, setText] = useState(cents === null ? "" : (cents / 100).toFixed(2));
+  const tooHigh = Number(text.replace(/[$\s]/g, "").replace(",", ".")) * 100 > MAX_PRICE_CENTS;
   return (
-    <label className="flex min-h-14 flex-1 items-center gap-2 rounded-xl border-2 border-ink px-3 focus-within:bg-marigold-soft">
-      <span className="money text-2xl" aria-hidden>
-        $
-      </span>
-      <input
-        aria-label={`Price for ${name}`}
-        inputMode="decimal"
-        autoComplete="off"
-        placeholder="0.00"
-        value={text}
-        onFocus={onFocus}
-        onChange={(e) => {
-          setText(e.target.value);
-          onPrice(parseDollars(e.target.value));
-        }}
-        className="money w-full min-w-0 bg-transparent text-2xl font-semibold outline-none placeholder:text-rule"
-      />
-      <span className="text-base text-graphite">each</span>
-    </label>
+    <div className="flex flex-1 flex-col gap-1">
+      <label className="flex min-h-14 items-center gap-2 rounded-xl border-2 border-ink px-3 focus-within:bg-marigold-soft">
+        <span className="money text-2xl" aria-hidden>
+          $
+        </span>
+        <input
+          aria-label={`Price for ${name}`}
+          inputMode="decimal"
+          autoComplete="off"
+          placeholder="0.00"
+          value={text}
+          onFocus={onFocus}
+          onChange={(e) => {
+            setText(e.target.value);
+            onPrice(parseDollars(e.target.value));
+          }}
+          className="money w-full min-w-0 bg-transparent text-2xl font-semibold outline-none placeholder:text-rule"
+        />
+        <span className="text-base text-graphite">each</span>
+      </label>
+      {tooHigh && (
+        <p role="alert" className="text-base font-semibold">
+          A price can be at most {formatCents(MAX_PRICE_CENTS)}.
+        </p>
+      )}
+    </div>
   );
 }

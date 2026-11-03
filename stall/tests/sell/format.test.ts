@@ -27,3 +27,11 @@ describe("parseDollars", () => {
     expect(parseDollars("-2")).toBeNull();
   });
 });
+
+describe("parseDollars cap", () => {
+  it("rejects prices above $10,000, the server's limit", () => {
+    expect(parseDollars("10000")).toBe(1_000_000);
+    expect(parseDollars("10000.01")).toBeNull();
+    expect(parseDollars("25000")).toBeNull();
+  });
+});

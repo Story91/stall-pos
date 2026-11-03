@@ -14,9 +14,13 @@ export function plainAmount(cents: number): string {
   return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
 }
 
+/** The server rejects unit prices above this (`createSaleBody`); match it here. */
+export const MAX_PRICE_CENTS = 1_000_000;
+
 /**
  * Parses what the owner typed into a price field. Accepts "4", "4.5", "4.50",
- * ".99", "$3.25" and a decimal comma. Returns positive integer cents, or null.
+ * ".99", "$3.25" and a decimal comma. Returns positive integer cents up to
+ * $10,000, or null.
  */
 export function parseDollars(text: string): number | null {
   const cleaned = text.replace(/[$\s]/g, "").replace(",", ".");
@@ -25,5 +29,5 @@ export function parseDollars(text: string): number | null {
   const whole = Number(match[1] || "0");
   const fraction = Number((match[2] ?? "").padEnd(2, "0"));
   const cents = whole * 100 + fraction;
-  return cents > 0 ? cents : null;
+  return cents > 0 && cents <= MAX_PRICE_CENTS ? cents : null;
 }
