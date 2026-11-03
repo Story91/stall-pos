@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { businessDate, daysAgo } from "@/lib/dates";
 import { computeTotals, type Line } from "@/lib/money";
 import type { Db } from "./index";
 import {
@@ -18,16 +19,6 @@ import { CATALOG, SALE_COMBOS } from "./seed-data";
 const TZ = "America/Chicago";
 const TAX_RATE = 0.0825;
 const HISTORY_DAYS = 7;
-
-// Task 5 replaces this with the shared helper in lib/dates.ts.
-function businessDate(now: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(now);
-}
-
-function shiftDate(date: string, deltaDays: number): string {
-  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
-  return new Date(Date.UTC(y, m - 1, d + deltaDays)).toISOString().slice(0, 10);
-}
 
 export async function seed(
   db: Db,
@@ -105,7 +96,7 @@ export async function seed(
         payeeId: rosa!.id,
         amountCents: 24000,
         note: "tortillas",
-        date: shiftDate(today, -2),
+        date: daysAgo(today, 2),
         status: "paid",
       })
       .returning({ id: bills.id });
@@ -130,12 +121,12 @@ export async function seed(
     const priceByName = new Map(CATALOG.map((c) => [c.name, c.priceCents]));
     const history: (typeof sales.$inferInsert)[] = [];
     let n = 0;
-    for (let daysAgo = 1; daysAgo <= HISTORY_DAYS; daysAgo++) {
-      const date = shiftDate(today, -daysAgo);
-      const count = 3 + (daysAgo % 4);
+    for (let ago = 1; ago <= HISTORY_DAYS; ago++) {
+      const date = daysAgo(today, ago);
+      const count = 3 + (ago % 4);
       for (let i = 0; i < count; i++) {
         n++;
-        const combo = SALE_COMBOS[(n * 5 + daysAgo) % SALE_COMBOS.length]!;
+        const combo = SALE_COMBOS[(n * 5 + ago) % SALE_COMBOS.length]!;
         const language = n % 3 === 0 ? "es" : "en";
         const lines: Line[] = combo.items.map(([name, qty]) => ({
           name,

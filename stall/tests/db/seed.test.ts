@@ -12,12 +12,7 @@ import {
   shifts,
 } from "@/db/schema";
 import type { Db } from "@/db";
-
-function todayInChicago(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Chicago",
-  }).format(new Date());
-}
+import { businessDate } from "@/lib/dates";
 
 describe("seed", () => {
   let db: Db;
@@ -83,7 +78,7 @@ describe("seed", () => {
 
     const paid = rosaBills.find((b) => b.status === "paid")!;
     const open = rosaBills.find((b) => b.status === "open")!;
-    expect(open.date).toBe(todayInChicago());
+    expect(open.date).toBe(businessDate(new Date(), "America/Chicago"));
     expect(open.note).toBe("tortillas");
     expect(paid.date < open.date).toBe(true);
 
@@ -105,7 +100,7 @@ describe("seed", () => {
       .where(
         and(
           eq(shifts.payeeId, result.payees.maria),
-          eq(shifts.date, todayInChicago()),
+          eq(shifts.date, businessDate(new Date(), "America/Chicago")),
         ),
       );
     expect(rows).toHaveLength(1);
