@@ -10,6 +10,7 @@ import { computeTotals, type Line } from "@/lib/money";
 import {
   buildInvoicePayload,
   createAndSendInvoice,
+  PartialInvoiceError,
   generateQr,
   getInvoiceStatus,
   recordCashPayment,
@@ -151,22 +152,51 @@ describe("createAndSendInvoice", () => {
   });
 });
 
+describe("createAndSendInvoice partial failures", () => {
+  it("attaches the invoice id when send fails after create", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ id: "INV2-PART" })
+      .mockRejectedValueOnce(new Error("send blew up"));
+    const error = await createAndSendInvoice(payload(null), "d-p").catch((e) => e);
+    expect(error).toBeInstanceOf(PartialInvoiceError);
+    expect(error).toMatchObject({ invoiceId: "INV2-PART", step: "send" });
+  });
+
+  it("reports step read when the GET fails or lacks a pay link", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ id: "INV2-RD" })
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("get failed"));
+    expect(await createAndSendInvoice(payload(null), "d-r").catch((e) => e)).toMatchObject({
+      invoiceId: "INV2-RD",
+      step: "read",
+    });
+  });
+
+  it("does not wrap a failure of the create call itself", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("create failed"));
+    const error = await createAndSendInvoice(payload(null), "d-c").catch((e) => e);
+    expect(error).not.toBeInstanceOf(PartialInvoiceError);
+  });
+});
+
 describe("generateQr", () => {
   it("posts the QR request and returns a bare base64 string", async () => {
     mockFetch.mockResolvedValueOnce("iVBORw0KGgo=" as never);
-    const qr = await generateQr("INV2-AAAA");
+    const qr = await generateQr("INV2-AAAA", "qr-req-1");
     expect(qr).toBe("iVBORw0KGgo=");
     expect(mockFetch).toHaveBeenCalledWith({
       method: "POST",
       path: "/v2/invoicing/invoices/INV2-AAAA/generate-qr-code",
       body: { width: 400, height: 400, action: "pay" },
+      requestId: "qr-req-1",
       fetchImpl: expect.any(Function),
     });
   });
 
   it("passes a fetch that makes a bare (non-JSON) base64 body parseable", async () => {
     mockFetch.mockResolvedValueOnce("x" as never);
-    await generateQr("INV2-AAAA");
+    await generateQr("INV2-AAAA", "qr-req-1");
     const { fetchImpl } = mockFetch.mock.calls[0]![0];
 
     vi.stubGlobal("fetch", async () => new Response("iVBORw0KGgo=", { status: 200 }));
@@ -189,7 +219,7 @@ describe("generateQr", () => {
 
   it("strips surrounding quotes and whitespace", async () => {
     mockFetch.mockResolvedValueOnce('"iVBORw0KGgo="\n' as never);
-    expect(await generateQr("INV2-AAAA")).toBe("iVBORw0KGgo=");
+    expect(await generateQr("INV2-AAAA", "qr-req-1")).toBe("iVBORw0KGgo=");
   });
 });
 

@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { createHash } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Business, Db, Sale } from "@/db";
 import { businesses, sales } from "@/db/schema";
@@ -6,7 +6,7 @@ import { recordSightings } from "@/lib/catalog";
 import { businessDate } from "@/lib/dates";
 import { computeTotals, type Line } from "@/lib/money";
 import type { Language } from "@/lib/parse/schema";
-import { buildInvoicePayload } from "@/lib/paypal/invoices";
+import { buildInvoicePayload, PartialInvoiceError } from "@/lib/paypal/invoices";
 
 export type TipPct = 0 | 15 | 18 | 20 | null;
 
@@ -15,7 +15,7 @@ export type SaleInvoices = {
     payload: ReturnType<typeof buildInvoicePayload>,
     requestId: string,
   ): Promise<{ invoiceId: string; payLink: string }>;
-  generateQr(invoiceId: string): Promise<string>;
+  generateQr(invoiceId: string, requestId: string): Promise<string>;
 };
 
 /** A confirmed line; `catalogItemId` links it to a catalog row for learning. */
@@ -48,12 +48,11 @@ export async function getSale(db: Db, saleId: string): Promise<Sale | undefined>
   return sale;
 }
 
-const BASE36 = "0123456789abcdefghijklmnopqrstuvwxyz";
-
-function invoiceNumber(date: string): string {
-  let suffix = "";
-  for (let i = 0; i < 4; i++) suffix += BASE36[randomInt(BASE36.length)];
-  return `STALL-${date.replaceAll("-", "")}-${suffix}`;
+// Deterministic per draft, so a retry sends an identical body under the same
+// PayPal request id (dedupe) instead of a new random number.
+function invoiceNumber(date: string, draftId: string): string {
+  const hash = createHash("sha256").update(draftId).digest("hex");
+  return `STALL-${date.replaceAll("-", "")}-${hash.slice(0, 6).toUpperCase()}`;
 }
 
 function storedResult(sale: Sale): ChargeResult {
@@ -125,7 +124,7 @@ export async function chargeSale(
       return { result: storedResult(existing!), created: false };
     }
 
-    const number = invoiceNumber(businessDate(now, business.tz));
+    const number = invoiceNumber(businessDate(now, business.tz), input.draftId);
     const payload = buildInvoicePayload({
       invoiceNumber: number,
       lines,
@@ -133,27 +132,40 @@ export async function chargeSale(
       taxRate,
       businessName: business.name,
     });
-    const { invoiceId, payLink } = await deps.invoices.createAndSendInvoice(
-      payload,
-      input.draftId,
-    );
-    const qrPng = await deps.invoices.generateQr(invoiceId);
-
-    await tx
-      .update(sales)
-      .set({
-        status: "awaiting",
-        invoiceId,
-        invoiceNumber: number,
-        qrPng,
-        payLink,
-      })
-      .where(eq(sales.id, draft.id));
-
-    return {
-      result: { saleId: draft.id, qrPng, payLink, totalCents: totals.totalCents },
-      created: true,
-    };
+    // If anything fails once PayPal holds an invoice, the rollback orphans it;
+    // log enough to find and cancel it (a retry reuses the same request id).
+    let invoiceId: string | undefined;
+    let step: string = "create";
+    try {
+      const created = await deps.invoices.createAndSendInvoice(payload, input.draftId);
+      invoiceId = created.invoiceId;
+      step = "qr";
+      const qrPng = await deps.invoices.generateQr(invoiceId, `${input.draftId}-qr`);
+      step = "save";
+      await tx
+        .update(sales)
+        .set({
+          status: "awaiting",
+          invoiceId,
+          invoiceNumber: number,
+          qrPng,
+          payLink: created.payLink,
+        })
+        .where(eq(sales.id, draft.id));
+      return {
+        result: { saleId: draft.id, qrPng, payLink: created.payLink, totalCents: totals.totalCents },
+        created: true,
+      };
+    } catch (error) {
+      if (error instanceof PartialInvoiceError) {
+        invoiceId = error.invoiceId;
+        step = error.step;
+      }
+      if (invoiceId) {
+        console.error("invoice orphaned", { draftId: input.draftId, invoiceId, step });
+      }
+      throw error;
+    }
   });
 
   // Learning is best-effort: the invoice already exists, so a catalog hiccup

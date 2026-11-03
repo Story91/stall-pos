@@ -19,6 +19,27 @@ export class PayPalError extends Error {
   }
 }
 
+export const DEFAULT_TIMEOUT_MS = 15_000;
+
+// Aborts the request after `ms`; also rejects if the fetch ignores the signal.
+function fetchWithTimeout(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  ms: number,
+): Promise<Response> {
+  const signal = AbortSignal.timeout(ms);
+  return new Promise<Response>((resolve, reject) => {
+    const timedOut = () =>
+      reject(new PayPalError(`paypal timeout after ${ms} ms`, 0, ""));
+    if (signal.aborted) return timedOut();
+    signal.addEventListener("abort", timedOut, { once: true });
+    fetchImpl(url, { ...init, signal }).then(resolve, (error: unknown) =>
+      signal.aborted ? timedOut() : reject(error),
+    );
+  });
+}
+
 // Refresh this long before the token actually expires.
 const REFRESH_MARGIN_MS = 60_000;
 
@@ -34,6 +55,7 @@ function baseUrl(): string {
 
 export async function getAccessToken(
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<string> {
   if (tokenCache && Date.now() < tokenCache.refreshAt) {
     return tokenCache.token;
@@ -42,14 +64,19 @@ export async function getAccessToken(
   const basic = Buffer.from(
     `${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`,
   ).toString("base64");
-  const res = await fetchImpl(`${baseUrl()}/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basic}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+  const res = await fetchWithTimeout(
+    fetchImpl,
+    `${baseUrl()}/v1/oauth2/token`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basic}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: "grant_type=client_credentials",
     },
-    body: "grant_type=client_credentials",
-  });
+    timeoutMs,
+  );
   const text = await res.text();
   if (!res.ok) {
     throw new PayPalError(
@@ -83,9 +110,11 @@ export async function paypalFetch<T>(opts: {
   body?: unknown;
   requestId?: string;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }): Promise<T> {
   const fetchImpl = opts.fetchImpl ?? fetch;
-  const token = await getAccessToken(fetchImpl);
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const token = await getAccessToken(fetchImpl, timeoutMs);
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
@@ -95,11 +124,16 @@ export async function paypalFetch<T>(opts: {
   if (opts.requestId) headers["PayPal-Request-Id"] = opts.requestId;
   if (opts.method === "POST") headers.Prefer = "return=representation";
 
-  const res = await fetchImpl(`${baseUrl()}${opts.path}`, {
-    method: opts.method,
-    headers,
-    body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-  });
+  const res = await fetchWithTimeout(
+    fetchImpl,
+    `${baseUrl()}${opts.path}`,
+    {
+      method: opts.method,
+      headers,
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    },
+    timeoutMs,
+  );
   const text = await res.text();
   if (!res.ok) {
     const debugId = parseDebugId(text);

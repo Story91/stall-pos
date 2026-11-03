@@ -65,6 +65,19 @@ export function buildInvoicePayload(input: {
   };
 }
 
+/** The invoice exists at PayPal but a later step failed; callers can log or clean it up. */
+export class PartialInvoiceError extends Error {
+  constructor(
+    readonly invoiceId: string,
+    readonly step: "send" | "read",
+    cause: unknown,
+  ) {
+    const detail = cause instanceof Error ? `: ${cause.message}` : "";
+    super(`PayPal invoice ${invoiceId} created but ${step} failed${detail}`, { cause });
+    this.name = "PartialInvoiceError";
+  }
+}
+
 /**
  * Creates the invoice, marks it sent without emailing anyone (the customer pays
  * by scanning the QR / opening the link), and reads back the payer-facing link.
@@ -86,21 +99,30 @@ export async function createAndSendInvoice(
     throw new Error("PayPal create invoice response had neither id nor href");
   }
 
-  await paypalFetch({
-    method: "POST",
-    path: `/v2/invoicing/invoices/${invoiceId}/send`,
-    body: { send_to_recipient: false, send_to_invoicer: false },
-    requestId: `${requestId}-send`,
-  });
+  try {
+    await paypalFetch({
+      method: "POST",
+      path: `/v2/invoicing/invoices/${invoiceId}/send`,
+      body: { send_to_recipient: false, send_to_invoicer: false },
+      requestId: `${requestId}-send`,
+    });
+  } catch (error) {
+    throw new PartialInvoiceError(invoiceId, "send", error);
+  }
 
-  const invoice = await paypalFetch<{
-    detail?: { metadata?: { recipient_view_url?: string } };
-  }>({ method: "GET", path: `/v2/invoicing/invoices/${invoiceId}` });
-  const payLink = invoice?.detail?.metadata?.recipient_view_url;
-  if (!payLink) {
-    throw new Error(
-      `PayPal invoice ${invoiceId} has no detail.metadata.recipient_view_url`,
-    );
+  let payLink: string | undefined;
+  try {
+    const invoice = await paypalFetch<{
+      detail?: { metadata?: { recipient_view_url?: string } };
+    }>({ method: "GET", path: `/v2/invoicing/invoices/${invoiceId}` });
+    payLink = invoice?.detail?.metadata?.recipient_view_url;
+    if (!payLink) {
+      throw new Error(
+        `PayPal invoice ${invoiceId} has no detail.metadata.recipient_view_url`,
+      );
+    }
+  } catch (error) {
+    throw new PartialInvoiceError(invoiceId, "read", error);
   }
   return { invoiceId, payLink };
 }
@@ -121,11 +143,15 @@ const rawBodyFetch: typeof fetch = async (input, init) => {
 };
 
 /** Base64 PNG of a pay QR code, without quotes or data-URI prefix. */
-export async function generateQr(invoiceId: string): Promise<string> {
+export async function generateQr(
+  invoiceId: string,
+  requestId: string,
+): Promise<string> {
   const res = await paypalFetch<unknown>({
     method: "POST",
     path: `/v2/invoicing/invoices/${invoiceId}/generate-qr-code`,
     body: { width: 400, height: 400, action: "pay" },
+    requestId,
     fetchImpl: rawBodyFetch,
   });
   if (typeof res !== "string") {

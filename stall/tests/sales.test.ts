@@ -5,6 +5,7 @@ import { seed } from "@/db/seed";
 import type { Db } from "@/db";
 import { catalogItems, sales } from "@/db/schema";
 import type { Line } from "@/lib/money";
+import { PartialInvoiceError } from "@/lib/paypal/invoices";
 import { chargeSale, getBusiness, getSale, markPaid } from "@/lib/sales";
 
 type TipPct = 0 | 15 | 18 | 20 | null;
@@ -24,7 +25,9 @@ describe("sales service", () => {
       invoiceId: "INV2-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
       payLink: "https://paypal.test/pay/1",
     }));
-    const generateQr = vi.fn(async () => "BASE64PNG");
+    const generateQr = vi.fn<(invoiceId: string, requestId: string) => Promise<string>>(
+      async () => "BASE64PNG",
+    );
     return {
       createAndSendInvoice,
       generateQr,
@@ -91,7 +94,7 @@ describe("sales service", () => {
       lines,
     });
     expect(row!.invoiceId).toMatch(/^INV2-/);
-    expect(row!.invoiceNumber).toMatch(/^STALL-20261103-[0-9a-z]{4}$/);
+    expect(row!.invoiceNumber).toMatch(/^STALL-20261103-[0-9A-F]{6}$/);
 
     // The payload sent to PayPal carries the same invoice number and a tip item.
     const [payload, requestId] = createAndSendInvoice.mock.calls[0] as unknown as [
@@ -102,7 +105,7 @@ describe("sales service", () => {
     expect(payload.detail.invoice_number).toBe(row!.invoiceNumber);
     expect(payload.detail.note).toBe("La Esquina");
     expect(payload.items.map((i) => i.name)).toEqual(["Tacos", "Horchata", "Tip"]);
-    expect(generateQr).toHaveBeenCalledWith(row!.invoiceId);
+    expect(generateQr).toHaveBeenCalledWith(row!.invoiceId, "draft-a-qr");
   });
 
   it("is idempotent on draftId: two charges, one row, one invoice", async () => {
@@ -160,6 +163,65 @@ describe("sales service", () => {
     expect(ok.createAndSendInvoice).toHaveBeenCalledTimes(1);
     const [row] = await db.select().from(sales).where(eq(sales.id, result.saleId));
     expect(row!.status).toBe("awaiting");
+  });
+
+  it("derives the invoice number deterministically from the draftId", async () => {
+    const numbers: string[] = [];
+    for (const draft of ["draft-det", "draft-det", "draft-other"]) {
+      const { deps, createAndSendInvoice } = fakes();
+      await db.delete(sales);
+      await chargeSale(db, deps, input(draft));
+      const [payload] = createAndSendInvoice.mock.calls[0] as unknown as [
+        { detail: { invoice_number: string } },
+      ];
+      numbers.push(payload.detail.invoice_number);
+    }
+    expect(numbers[0]).toBe(numbers[1]);
+    expect(numbers[0]).not.toBe(numbers[2]);
+  });
+
+  it("logs an orphaned invoice and leaves no row when send fails after create", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const f = fakes();
+      f.createAndSendInvoice.mockRejectedValueOnce(
+        new PartialInvoiceError("INV2-ORPH", "send", new Error("send down")),
+      );
+      await expect(chargeSale(db, f.deps, input("draft-orph"))).rejects.toBeInstanceOf(
+        PartialInvoiceError,
+      );
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith("invoice orphaned", {
+        draftId: "draft-orph",
+        invoiceId: "INV2-ORPH",
+        step: "send",
+      });
+      expect(await db.select().from(sales).where(eq(sales.draftId, "draft-orph"))).toHaveLength(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("logs the orphan when the QR step fails, but not when create itself fails", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const qrFail = fakes();
+      qrFail.generateQr.mockRejectedValueOnce(new Error("qr down"));
+      await expect(chargeSale(db, qrFail.deps, input("draft-qr"))).rejects.toThrow("qr down");
+      expect(spy).toHaveBeenCalledWith("invoice orphaned", {
+        draftId: "draft-qr",
+        invoiceId: expect.stringMatching(/^INV2-/),
+        step: "qr",
+      });
+
+      spy.mockClear();
+      const createFail = fakes();
+      createFail.createAndSendInvoice.mockRejectedValueOnce(new Error("create down"));
+      await expect(chargeSale(db, createFail.deps, input("draft-cf"))).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   describe("markPaid", () => {

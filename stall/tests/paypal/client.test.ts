@@ -235,6 +235,58 @@ describe("paypalFetch", () => {
   });
 });
 
+describe("timeouts", () => {
+  const TIMEOUT = /paypal timeout after 20 ms/;
+
+  it("rejects with a status-0 PayPalError when the API call is too slow", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(tokenResponse("tok-1", 3600)).mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise((resolve, reject) => {
+          const timer = setTimeout(() => resolve(json({ ok: true })), 100);
+          init.signal?.addEventListener("abort", () => {
+            clearTimeout(timer);
+            reject(new DOMException("aborted", "TimeoutError"));
+          });
+        }),
+    );
+    const error = (await paypalFetch({
+      method: "GET",
+      path: "/slow",
+      fetchImpl,
+      timeoutMs: 20,
+    }).catch((e: unknown) => e)) as PayPalError;
+    expect(error).toBeInstanceOf(PayPalError);
+    expect(error.status).toBe(0);
+    expect(error.message).toMatch(TIMEOUT);
+    expect(error.message).toBe("paypal timeout after 20 ms");
+  });
+
+  it("times out even when fetch ignores the abort signal (never resolves)", async () => {
+    const fetchImpl = vi.fn().mockReturnValue(new Promise(() => {}));
+    const error = (await paypalFetch({
+      method: "GET",
+      path: "/hang",
+      fetchImpl,
+      timeoutMs: 20,
+    }).catch((e: unknown) => e)) as PayPalError;
+    // The hang is on the token request, which has the same bound.
+    expect(error).toBeInstanceOf(PayPalError);
+    expect(error.status).toBe(0);
+    expect(error.message).toMatch(TIMEOUT);
+  });
+
+  it("passes an abort signal to the request, with a 15 s default", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(tokenResponse("tok-1", 3600))
+      .mockResolvedValueOnce(json({}));
+    await paypalFetch({ method: "GET", path: "/a", fetchImpl });
+    for (const [, init] of calls(fetchImpl)) {
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    }
+  });
+});
+
 describe("money helpers", () => {
   it("converts integer cents to PayPal's two-decimal strings", () => {
     expect(toMoney(1850)).toBe("18.50");
