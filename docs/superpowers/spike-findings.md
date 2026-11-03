@@ -1,6 +1,6 @@
 # Day-0 spike findings (sandbox, 2026-11-04 00:05 Warsaw)
 
-Status: **partial**. Invoice create/send/QR verified from this machine; the customer-side payment and the Payout are pending a human paying the invoice with the sandbox buyer account.
+Status: **complete** (2026-11-04 00:50 Warsaw). Invoice create/send/QR, customer payment, and Payout all verified against the sandbox.
 
 ## Setup facts
 
@@ -16,11 +16,14 @@ Status: **partial**. Invoice create/send/QR verified from this machine; the cust
 | `POST /v2/invoicing/invoices` | 201, ~1–2 s; returns `href`, id `INV2-…` |
 | `POST …/send` `{ send_to_recipient: false, send_to_invoicer: false }` | 200; invoice `UNPAID`; `detail.metadata.recipient_view_url` = `https://www.sandbox.paypal.com/invoice/p/#<id-without-dashes>` |
 | `POST …/generate-qr-code` `{ width, height, action: 'pay' }` | **200 with `Content-Type: multipart/form-data; boundary=<uuid>`**, one part `name="image"`, `Content-Type: text/plain`, body = base64 PNG. **Not** JSON, **not** a bare base64 string. Parsing: take the text after the part's blank line up to the next `\r\n--`. ~950 bytes for 400×400. |
-| Pay → `PAID` latency | pending (needs buyer login) |
-| Payout → recipient balance | pending |
+| Pay → `PAID` | **Verified 2026-11-04 ~00:45 Warsaw.** Buyer opened the pay link, logged in with the sandbox Personal account, saw PayPal balance and a saved card as options, paid 9.00 USD. Invoice `status: PAID`; `payments.transactions[0] = { type: 'PAYPAL', method: 'PAYPAL', transaction_status: 'SUCCESS', payment_date: 'YYYY-MM-DD', payment_date_time: ISO }`. **Field is `payment_date_time`, not `date`** (webhook handler must read it). Latency from "Pay" to API `PAID` not timed precisely; the poll saw it on the first check after payment. |
+| Payout → recipient | **Verified.** `POST /v1/payments/payouts` 1.00 USD to Maria's sandbox account: batch `PENDING` at t+0, `PROCESSING` t+6 s, item `SUCCESS` t+12 s, batch `SUCCESS` t+18 s. Fee **0.25 USD per item** in sandbox (US Payouts pricing) — mention in README; the demo's $120 payout costs $0.25. PayPal batch id (`GLACPA5F5UD9W`) ≠ our sender batch id — stored separately (Task 13). |
+| `/v1/reporting/balances` | Shows 5000.00 right after the sale; reporting lags. Do not use it in the video; show invoice status or the transaction list. |
 
 ## Consequences for the code
 
 - `stall/src/lib/paypal/invoices.ts` `generateQr` assumed a bare base64 body: it must parse the multipart part. Carried into Task 13's dispatch (same `lib/paypal` area), with a fixture from `scratch/qr-body.txt`.
 - The pay link opens on PayPal's sandbox domain; the customer can pay with the sandbox Personal account. Guest card payment visibility on mobile is still to be observed.
-- Polling interval 3 s stays until the pay latency is measured.
+- Polling interval: keep 3 s (payment showed as PAID within one poll after the buyer paid).
+- Webhook handler (Task 9) reads `transactions[0].date`; real field is `payment_date_time` → fix carried into Task 17.
+- Payouts settle in ~18 s in sandbox; the Close screen should poll or rely on the PAYMENT.PAYOUTS-ITEM.SUCCEEDED webhook rather than expecting instant SUCCESS.
