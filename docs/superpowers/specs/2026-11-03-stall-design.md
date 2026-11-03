@@ -1,149 +1,124 @@
-# Stall — design document
+# Stall — design document (v2)
 
-Date: 2026-11-03 · Status: draft for approval · Target: PayPal AI Hackathon 2026 submission by Nov 11, 2026
+Date: 2026-11-03 · Status: **approved with corrections** (author + external review) · Target: PayPal AI Hackathon 2026 submission by Nov 11, 2026
+
+Changes from v1: differentiator restated (Square Tap to Pay needs no reader either), scope cut to a core loop, day-0 end-to-end PayPal spike made mandatory, close-the-day made idempotent and tied to shifts/bills, honest "works / demo / later" split, weather suggestion replaced by the agent's "hold" moment.
 
 ## 1. Intent
 
-Stall is a voice-first point of sale and back-office agent for small businesses that sell face-to-face and have no point of sale: food trucks, market and fair vendors, pop-ups, mobile services (barbers, cleaners, handymen), tutors, street artists. The owner speaks the sale in their own language; Stall turns it into an itemized PayPal invoice with sales tax and an optional tip, shows a QR code, and confirms payment out loud. In the evening, an AI agent closes the day on the owner's behalf: reconciles, pays helpers and suppliers through PayPal Payouts, bills wholesale customers, chases unpaid invoices and suggests tomorrow's prep.
+Stall lets a small face-to-face business run sales and settle the day **by talking, in the owner's language, with almost no setup**. The owner speaks the sale; Stall turns it into an itemized PayPal invoice, shows a QR code, and says "paid" when the money arrives. In the evening the owner says "close the day"; an AI agent reconciles, pays what the owner has logged as owed through PayPal Payouts, and **stops and asks** when something looks wrong.
 
-Why it matters: in the US alone, millions of micro-businesses take payment with a Venmo sticker, a cash box and a notebook. Customers increasingly carry no cash. Existing POS (Square, Zettle, Toast) assumes a reader, a menu grid and English. Stall assumes a phone, a voice and whatever language the owner speaks.
+Who: food trucks, market and fair vendors, pop-ups, mobile services, tutors. Product direction is "any business that sells face-to-face"; the demo is one taco truck, one day.
 
-Why PayPal: Invoicing with QR codes is the only mainstream rail where a seller can itemize, tax, tip, and get paid by PayPal, Venmo (US) or a guest card, with no hardware. Payouts gives same-day pay for helpers. Both are in the free sandbox.
+Why not Square / Zettle / Toast: they also take payments with just a phone (Square Tap to Pay). Their model is a menu grid, taps, English-first setup, and a separate world for paying helpers and suppliers. Stall's wedge is different: **conversation instead of configuration**. No menu to build (the catalog learns from speech), the owner's language on both the sale and the back office, and one agent that both sells and settles, with visible judgment about when not to act.
 
-Why now: PayPal's Agent Toolkit exposes 20 invoicing tools; LLMs parse messy multilingual speech reliably; the hackathon rewards agents that transact.
+Why PayPal: Invoicing gives an itemized, QR-payable bill with no hardware and a payer page that accepts PayPal, card, and in the US Venmo; Payouts pays people by email the same day. Both work in the free sandbox, and the Agent Toolkit exposes invoicing to the agent.
 
-## 2. Goals
+## 2. Core loop (must ship)
 
-1. Speech → confirmed line items → PayPal invoice with QR in under 10 seconds on a phone, in English and Spanish at minimum (Polish demonstrated as "any language").
-2. Payment confirmation (PayPal, Venmo where sandbox allows, guest card) reaches the phone via webhook and is spoken aloud.
-3. Cash sales recorded with one tap/word so the day's picture is complete.
-4. Sales tax computed from the business's current location (US state + optional local rate), itemized on the invoice.
-5. "Close the day" agent: summary spoken and written; Payouts to configured payees within rules; recurring invoices for wholesale customers; reminders for unpaid invoices; tomorrow's suggestions. Every action has a visible one-sentence rationale and a log entry.
-6. Dashboard (AG Grid): sales, items, taxes, payouts, with "ask your sales" in natural language.
-7. Monthly export (CSV) suitable for a bookkeeper (1099-K / Schedule C framing).
-8. Judge-runnable: `npm install`, `.env`, `npm run dev`, seed data, sandbox accounts in README; hosted on Render.
-9. A < 3 minute video showing the full loop with money visibly moving in the sandbox.
+1. **Sell by voice**: push-to-talk, visible language picker (English, Spanish; Polish shown once as "any language the model understands"), transcript → Claude → line items with quantities and prices from the learned catalog → owner confirms on screen (edit or re-say).
+2. **Charge**: server builds the invoice (items, one configurable tax rate for the business, optional tip line), creates and sends it via PayPal Invoicing v2, generates the QR, shows QR + pay link + "Cash" button.
+3. **Paid**: customer scans with their phone, pays on PayPal's page; webhook `INVOICING.INVOICE.PAID` (signature-verified) flips the sale to paid; the owner's phone gets the event (SSE, polling fallback) and says "Paid, $18.40". Cash → `record_payment` with method CASH.
+4. **Log what's owed**: on the Day screen or by voice: "Maria worked today" (shift) and "I owe Rosa 240 for tortillas" (bill, optional photo).
+5. **Close the day** (button, or 20:00 trigger): the agent summarizes the day (spoken + written), pays each logged shift and bill through Payouts **within rules**, and for anything outside the rules or suspicious creates a decision card with its reason and the source record. The demo day has exactly: one auto payout (Maria, $120, shift logged) and one hold (the tortillería bill looks like a duplicate of a bill paid two days ago → "check before paying again", with both bills shown).
+6. **Day view**: today's sales with status, totals, tax collected, tips, payouts, decisions.
 
-## 3. Non-goals
+Everything else is stretch or later (§4).
 
-- No card reader, no receipt printer, no inventory counts, no table management.
-- No multi-location or multi-user roles; one business, one owner.
-- No live tax API (Avalara/TaxJar); a bundled table of US state rates plus editable local rate is enough for the demo and honest in the README.
-- No native iOS/Android app; a PWA is the product.
-- No production PayPal; sandbox only, stated everywhere.
-- No accounting integrations (QuickBooks etc.); CSV export only.
-- No marketplace between vendors and customers; the customer side is PayPal's own invoice page.
+## 3. Goals, measured
 
-## 4. Anti-goals (what would make it a failure even if it works)
+- Speech → confirmed items → QR on screen in ≤ 10 s on a phone (sandbox latency included; show a progress state).
+- Payment confirmation spoken within 10 s of the customer paying (webhook or poll).
+- Close-the-day is **idempotent**: running it twice on the same day pays nothing twice and sends nothing twice.
+- Every money action has a one-sentence rationale stored and shown.
+- Judge can reproduce the loop from the README in 15 minutes with the provided sandbox accounts; hosted demo on Render.
+- Video < 3:00 shows the loop with money visibly moving in the sandbox.
 
-- The agent moves money the owner did not authorize by rule. Hard limits in code, never only in the prompt.
-- A "chat with your POS" wrapper where the AI is decorative. The AI must do parsing, tax/tip reasoning, multilingual confirmation, and evening decisions that are visible.
-- A demo that only works with the author at the keyboard. Judges must reproduce it from the README in 15 minutes.
-- Default-template UI. The phone screen in the video must look like a product a vendor would trust with money.
-- Secrets or real personal data in the repo or the video.
+## 4. Scope: works / demo-only / later
 
-## 5. Users and the two moments
+**Works (real behavior in sandbox):** voice capture (Web Speech, text fallback), parsing in en/es/pl, catalog learning (price suggested after 2 sightings), invoice create/send/QR, webhook-confirmed payment, cash recording, shift and bill logging, close-the-day with Payouts, rule enforcement, duplicate-bill hold, decision cards with approve/decline, idempotency, Day view, CSV export of the day/month.
 
-**Owner at the counter** (hands busy, noisy, 10 seconds of attention): tap-and-hold the mic, speak the order, glance at the parsed items, tap "Charge", show the QR, hear "Paid, $18.40". If the parse is wrong, tap an item to edit or say it again.
+**Demo-only (honest in README and video):** tax is one rate the owner sets in Settings (seed: Austin, TX 8.25%), not a jurisdiction engine; Venmo is named as a production payment method, demo pays with a sandbox PayPal buyer; "any language" is demonstrated with three.
 
-**Owner in the evening** (tired, phone on the couch): tap "Close the day" or let the 8 pm job run. Hear the summary. See the list of what the agent did and wants to do (paid Maria $120; sent the weekly invoice to Blue Oak Café; two invoices unpaid, reminders sent; suggests 20% more tortillas tomorrow because Saturday + sunny). Approve anything above the rule threshold with one tap.
+**Stretch, in priority order, only after the core loop is green end-to-end (target day 5 at the latest):**
+1. AG Grid dashboard (`/dashboard`) over sales and payouts with grouping and totals (sponsor prize; small effort).
+2. "Ask your sales" over the grid, 5 supported question types.
+3. Invoice reminder for unpaid invoices at close (toolkit `send_invoice_reminder`, once per invoice per day).
+4. Tip toggle UX (line item exists in core; the toggle is polish).
 
-**Customer** (not our user): scans the QR, lands on PayPal's invoice page, pays with PayPal, Venmo or card. No app.
+**Later (not in the hackathon build):** weekly invoices for wholesale customers, weather-based prep suggestions, tax by GPS, bookkeeping integrations, multi-user, native apps, server-side ASR unless forced by the recording phone.
 
-**Judge**: reads README, runs the app or opens the Render URL, logs into the sandbox buyer, pays an invoice, sees the webhook flip the sale to paid, triggers "Close the day", sees Payouts in the sandbox.
+## 5. Non-goals and anti-goals
 
-## 6. Product shape
+Non-goals: card reader, receipts printing, inventory, tables, multi-location, production PayPal, live tax API, accounting integrations.
 
-### 6.1 Vendor PWA (mobile-first, also fine on desktop)
+Anti-goals: the agent moves money not covered by an owner-logged shift/bill and a code rule; AI as decoration; a demo only the author can run; template UI; secrets or real personal data anywhere.
 
-Screens: Sell · Day · Close · Settings. Plus a desktop Dashboard route with AG Grid.
+## 6. Day-0 spike (before any product code)
 
-- **Sell**: big mic button (push-to-talk), language auto-detect with manual override, parsed line items with qty/price/tax flag, running total, tip toggle (none / 15 / 18 / 20 / custom), "Charge" → QR screen (invoice QR from PayPal plus the pay link and a "Cash" button). Status: Waiting → Paid (webhook) with voice confirmation and vibration. "New sale" resets.
-- **Day**: today's sales list with status (paid / cash / unpaid / cancelled), totals, taxes collected, tips.
-- **Close**: the agent's summary and action list with rationale; approve/decline items above threshold; "Run close now" for the demo.
-- **Settings**: business name, location (state + city + local rate, GPS suggest), languages, catalog (items with default prices, learned from speech), payees (name, PayPal email, role, max per day, auto-pay yes/no), wholesale customers (name, email, weekly items, day of week), tax-exempt items list.
-- **Dashboard** (`/dashboard`, desktop): AG Grid of sales and payouts, grouping by day/item, totals, chart; "Ask your sales" box that turns a question into a grid filter/aggregation and a spoken sentence.
+A throwaway script + manual run that proves the loop on real devices: create and send an invoice from the US business sandbox account, display the QR on the laptop, **scan it with a second phone**, pay as the sandbox Personal buyer, observe which payment methods and which payer fields the PayPal page shows, receive the webhook on a tunnel (or confirm by polling), then run a Payout to a sandbox Personal account and see its balance change. Record: latency of each step, what the payer page asks for, whether the QR resolves on mobile, any country/currency gotchas. The findings go into the README's "What the customer sees" section and decide whether polling or webhooks lead the UX.
 
-### 6.2 Flows
+## 7. Product shape
 
-**Sell flow**
-1. Push-to-talk captures audio via the browser's Web Speech API (Android Chrome and desktop Chrome; en/es/pl/vi/ko). **Language is chosen with a visible picker on the Sell screen, not auto-detected** (Web Speech needs `lang` before it starts; the picker is also a good visual for the video). Text fallback field always visible. Server-side ASR (OpenAI or Deepgram speech-to-text, one extra env var, optional) sits behind the same `transcribe()` interface and is required only if the recording phone is an iPhone, where Web Speech is unreliable in PWA mode.
-2. Transcript + catalog + language → Claude → structured items `{ name, qty, unitPrice, taxable, catalogMatch }` with a confidence per item and a spoken-back confirmation string. Low-confidence items are highlighted.
-3. Owner confirms → server computes subtotal, tax (jurisdiction table), tip, total → creates a PayPal invoice (Invoicing v2 via REST, deterministic), sends it, generates the QR → stores Sale with invoice id → returns QR + link.
-4. Customer pays on PayPal's page → webhook `INVOICING.INVOICE.PAID` → signature verified → Sale marked paid → push to the phone (SSE) → voice "Paid, $18.40, thank you".
-5. Cash: owner taps Cash → `record_payment` on the invoice (method CASH) → Sale marked paid-cash.
+### 7.1 Screens (mobile-first PWA; Day and Settings fine on desktop)
 
-**Close-the-day flow (the agent)**
-1. Trigger: cron 20:00 business-local on Render, or "Run close now".
-2. Agent (Vercel AI SDK `generateText` with tools, maxSteps ≤ 12) gets: today's sales, catalog, payees + rules, wholesale customers + schedule, unpaid invoices, weather tomorrow (Open-Meteo, free), last 14 days history.
-3. Tools available to it: `list_today_sales`, `pay_payee` (custom, Payouts, enforces per-payee daily max + allowlist; above max → creates an approval request instead), `create_recurring_or_weekly_invoice` (Invoicing create+send for wholesale customers due today), `send_invoice_reminder` (toolkit), `propose_prep` (writes suggestion), `write_summary`.
-4. Every tool call is logged with the model's one-sentence rationale (required field in each tool's input). The Close screen renders the log. Approval requests show as cards with Approve/Decline; approving executes the payout.
-5. Summary is spoken (browser TTS) and stored.
+- **Sell**: language picker, big push-to-talk, parsed items (qty, name, price, taxable), total, tip (none/15/18/20), Charge → QR screen (QR, link, Cash, status Waiting → Paid with voice + vibration where available), New sale.
+- **Day**: sales list with status, totals; "Who worked today" chips (shift), "Log a bill" (voice or form); payouts and decisions for the day; Close the day button.
+- **Close**: spoken/written summary, action log with rationale, decision cards (Approve / Decline / Mark as already paid), "Run close again" (safe).
+- **Settings**: business name, currency USD, tax rate, languages, catalog, payees (name, PayPal email, role, daily rate, max per day, auto-pay), owner PIN for the hosted demo, Reset demo.
+- Stretch: **Dashboard** (AG Grid).
 
-**What the agent owes and to whom (source of truth)**: money owed is recorded by the owner, never inferred by the model. Two small entities: `shift` (helper marked present for today on the Day screen or by voice: "Maria worked today") and `bill` (supplier amount logged by voice or form: "I owe Rosa 240 for tortillas", with a photo optional). At close, the agent pays helpers with a shift today up to their daily rate (auto if `auto_pay` and within max), and pays logged bills within rules; anything else becomes an approval request. A day with no sales and no shifts pays nobody. The seed logs Maria's shift and the tortillería bill for the demo day.
+### 7.2 Close-the-day: rules and idempotency (code, not prompt)
 
-**Payout rules** (code, not prompt): payee must exist and be enabled; amount ≤ payee.maxPerDay − paidToday; business-level daily cap; currency USD; idempotent `sender_batch_id` = `close-{date}-{payeeId}`; otherwise → approval request. Webhooks `PAYMENT.PAYOUTS-ITEM.SUCCEEDED|FAILED|UNCLAIMED` update status.
+- Inputs: today's sales, open shifts and bills, payees and rules, recent paid bills (14 days), prior agent runs today.
+- Each payout settles **one shift or one bill** (`payout.shift_id` / `payout.bill_id`, unique). A shift/bill with a payout in state SUCCESS/PENDING is skipped. `sender_batch_id = stall-{businessId}-{shift|bill}-{id}`; PayPal rejects duplicate batch ids within 30 days as a second line of defense.
+- Pay automatically only if: payee enabled and `auto_pay`; amount ≤ `payee.max_per_day − paid_today`; business daily cap; currency USD; no duplicate flag. Otherwise → decision card (reason, source records).
+- **Duplicate-bill hold**: a bill is flagged if the same payee has a paid bill within 7 days with amount within ±10% or identical note; card shows both bills and the earlier payout id. This is the demo "hold" moment.
+- Reminders (stretch) are keyed `(invoice_id, date)`; summaries are keyed `(business, date)` and overwritten, not duplicated.
+- Sales are not a precondition for paying logged obligations (a slow day still owes Maria her shift). The agent never infers an amount; it only acts on logged records.
+- The model's role at close: write the summary, order the actions, phrase each rationale, and decide between "pay" and "hold" **only within** the rule outcomes the code pre-computed (it can escalate a payable item to a hold with a reason; it can never turn a hold into a payment).
 
-**Tax**: `taxRate(state, localRate)`; bundled table of US state rates (2026 values, cited source in README); per-item `taxable` default from catalog (e.g. in many states unprepared groceries are exempt; the owner marks items). Tax line shown on the invoice as a separate item or using the invoice's tax field per PayPal's schema (builder chooses whichever renders clearly on the PayPal page).
+### 7.3 Data model (Postgres, Drizzle)
 
-**Tip**: owner toggles before charging; added as an invoice line "Tip". (PayPal invoices also support allowing the payer to add a tip; builder uses it if it renders in sandbox, otherwise the line item.)
+business · catalog_item (name, aliases, default_price, taxable, sightings) · sale (invoice_id, invoice_number, status, lines, subtotal, tax, tip, total, method, language, transcript, paid_at) · payee (name, email, role, daily_rate, max_per_day, auto_pay, enabled) · shift (payee_id, date) · bill (payee_id, amount, note, photo_url, date, status) · payout (shift_id | bill_id, batch_id, item_id, amount, status, rationale) · decision (type, reason, source json, status) · agent_run (date, summary, log) · webhook_event (id, type, processed_at).
 
-### 6.3 Data model (Postgres via Drizzle)
+### 7.4 Architecture
 
-business, catalog_item, sale (invoice id, status, lines json, subtotal, tax, tip, total, method, language, transcript), payee (name, email, role, daily_rate, max_per_day, auto_pay), shift (payee, date), bill (payee, amount, note, date, status), payout (batch id, item id, status, rationale, approval state), wholesale_customer (name, email, weekday, lines json), agent_run (date, summary, log json), approval_request, webhook_event (id, type, processed_at) for idempotency, tax_jurisdiction (state, rate, local_rate).
+- Next.js App Router in `app/`, TypeScript strict, Tailwind, PWA manifest.
+- `lib/paypal`: token cache, `PayPal-Request-Id`, zod-validated responses; `invoices.ts`, `payouts.ts`, `webhooks.ts`. Hot sell path calls REST directly (deterministic); the close agent uses Vercel AI SDK tools: our `pay_obligation`, `hold_obligation`, `write_summary`, plus toolkit `send_invoice_reminder` (stretch).
+- AI: Vercel AI SDK 7 + Claude Sonnet 5.5; zod structured outputs for parsing; `maxSteps ≤ 8` at close.
+- Voice: Web Speech API (Android/desktop Chrome) behind `transcribe()`; browser TTS for confirmations; server ASR only if the recording phone forces it.
+- Realtime: SSE `/api/events` + 3 s polling on the QR screen.
+- Hosting: Render web service (webhook URL) + Neon Postgres; close trigger via "Close the day" button and an external 20:00 ping to `/api/close?key=`; paid Render plan optional (see §9).
+- Tests (Vitest): parser schema with ~12 transcripts in 3 languages (fixtures), invoice payload builder, payout rules incl. idempotency and duplicate detection, webhook signature verification; one Playwright smoke (sell → QR).
 
-### 6.4 Architecture
+### 7.5 Seed
 
-- One Next.js (App Router) project in `app/`; TypeScript strict; Tailwind; PWA manifest + service worker (offline shell only).
-- Server: route handlers for sell/close/webhook/dashboard-query; a `lib/paypal` client (token cache, `PayPal-Request-Id`, zod-validated responses) with modules `invoices.ts`, `payouts.ts`, `webhooks.ts`; `lib/agent` with the close-the-day tools; `lib/tax`; `lib/parse` (speech → items prompt + schema).
-- AI: Vercel AI SDK 7, Claude Sonnet 5.5 for parsing and the close agent; structured outputs via zod; PayPal Agent Toolkit (`/ai-sdk`) supplies invoice reminder/search tools to the agent; the hot sell path uses REST directly for determinism and speed.
-- Realtime to phone: Server-Sent Events from a `/api/events` route; polling fallback.
-- Hosting: Render web service (public webhook URL) + Postgres on Neon (Render's free Postgres expires after 30 days, before judging ends) + the 20:00 close triggered by an external scheduler hitting `/api/close?key=…` (Render cron has no free tier). "Run close now" is the demo path. If the author approves a small paid Render plan (see §8), the web service stays warm and the cron runs natively; the code is identical. Local dev: `cloudflared` tunnel for webhooks, or the dashboard's webhook simulator.
-- Tests (Vitest): parse schema + a dozen transcripts in 3 languages (recorded model outputs as fixtures), tax calc, payout rules, webhook signature verification (recorded sandbox payload), invoice payload builder. One Playwright smoke: sell → QR shown.
+"La Esquina" taco truck, Austin TX, tax 8.25%, 12 catalog items en/es, payees: Maria (prep cook, $120/day, auto), Tortillería Rosa (supplier, manual above $200). Demo day: Maria's shift logged; bill "tortillas 240" logged today **and** a paid bill "tortillas 240" two days ago (the duplicate). 7 days of history for the Day view. Sandbox: US business account, personal buyer, Maria, Rosa.
 
-### 6.5 Seed / demo data
+## 8. Constraints
 
-A taco truck "La Esquina" in Austin, TX (state 6.25% + local 2% = 8.25%), catalog of 12 items in English/Spanish, one helper (Maria, prep cook, $120/day auto), one supplier (Tortillería Rosa, manual approval above $200), one wholesale customer (Blue Oak Café, weekly Thursday order), 14 days of plausible history for the dashboard. Sandbox accounts: business (the truck), personal buyer (customer), two personal accounts for Maria and the tortillería.
+9 days, one developer with Claude Code. Core loop green end-to-end by **day 4 (Nov 7)**; feature freeze day 5; video day 7; submit day 8. Sandbox only; MIT; English for everything that ships; `.env.example` complete; video < 3:00 public on YouTube; sponsor tools limited to Render and AG Grid (stretch).
 
-## 7. Constraints
+## 9. Decisions
 
-- 9 days, one developer with Claude Code; freeze features on day 5 (Nov 8); video on Nov 10; submit Nov 11.
-- PayPal sandbox only; everything demonstrable without approval from PayPal.
-- Repo public, MIT, English; `.env.example` complete; no secrets.
-- Video < 3:00, YouTube public, no copyrighted music.
-- Sponsor tools: AG Grid (Community; Enterprise trial only if a feature is needed), Render. Others skipped.
+- Idea and market: Stall, US, general small businesses; one truck, one day in the video (author).
+- Differentiator: conversation instead of configuration + agent that knows when to stop (author's reviewer, accepted).
+- Scope cut to §2 core; §4 stretch order (reviewer, accepted).
+- Owed amounts only from owner-logged shifts/bills; model never infers; sales are not a precondition (reviewer, accepted; v1 rule fixed).
+- Language picker, not auto-detect; Web Speech first (designer).
+- Single configurable tax rate, labeled demo (reviewer, accepted).
+- Open, author to decide: recording phone (Android vs iPhone); hosting budget (free: Neon + free Render + external ping, or ~$15 paid Render through Dec 15).
 
-## 8. Decided by the author (user) and the designer
+**Author must do in the PayPal dashboard before day 1:** sandbox Business account with country **United States**, REST app on that account, three US Personal accounts (customer, Maria, Rosa), Client ID/Secret into `.env`, webhook once the Render URL exists.
 
-- Idea: Stall, US market, general small businesses that sell face-to-face; video opens with one concrete scene (food truck) as the example, pitch addresses the broader audience. (User: "general for businesses"; designer's call on using one scene, because the judging criteria require a specific audience in the demo.)
-- Voice via browser Web Speech API with text fallback (designer's call; cheapest and instant).
-- Tax from a bundled table, not an API (designer's call).
-- LLM parses and decides; code executes money moves deterministically with limits (designer's call).
-- Working name Stall; rename is free until day 6.
-- Owed amounts come from owner-logged shifts and bills, never from model inference (designer's call after builder check).
-- Language picker instead of auto-detect; server ASR optional behind one interface (designer's call).
-- Open, author to decide: (a) recording phone Android or iPhone (iPhone forces server ASR on day 1); (b) hosting budget: free only (Neon + free Render + external ping) or roughly $15 for a paid Render web service + cron through Dec 15.
+## 10. Risks
 
-**Author must do in the PayPal dashboard before day 1 (cannot be automated):** create a sandbox **Business account with country United States** (default sandbox accounts take the developer's country; a PL/PLN account breaks USD invoices and tax display), create the REST app against that US business account, create three US Personal sandbox accounts (customer, Maria, tortillería), put Client ID/Secret in `.env`, and add the webhook once the Render URL exists.
-
-## 9. Left to the builder
-
-- Exact prompts and schemas; how catalog learning works (suggest a price after N sightings).
-- UI layout and visual design (follow `frontend-design`; must look trustworthy, high contrast for sunlight, big touch targets).
-- Whether tax/tip use PayPal invoice fields or line items (whichever renders well in sandbox).
-- SSE vs polling details; PWA caching.
-- Dashboard "ask your sales": translation of the question into AG Grid filter model + aggregation; start with 6 supported question types.
-- Weather call and prep-suggestion heuristic.
-- Test fixtures and seed script details.
-
-## 10. Risks and mitigations
-
-- Web Speech API fails on the recording device → server ASR via an API behind the same interface; text input always there.
-- Sandbox latency 2–5 s per invoice create+send → show a progress state; do not claim "2 seconds" anywhere.
-- Venmo not available in sandbox invoice page → say "PayPal, card, and Venmo in production (US)"; demo with PayPal buyer.
-- Webhook delivery delay in sandbox → the QR screen also polls the invoice status every 3 s.
-- "Why not Square/Zettle" → first 30 seconds of the video and a README section.
+- Payer page UX on mobile unknown until the day-0 spike → spike first; polling backs up webhooks.
+- Sandbox latency → progress states; never claim seconds we did not measure.
+- Web Speech on iPhone → server ASR behind the same interface.
+- Duplicate-bill heuristic too eager/lazy → tune on seed; the owner always has "Mark as already paid" and "Pay anyway".
 
 ## 11. Video (2:40)
 
-0:00 A line at a food truck; a customer holds up a phone, "do you take cards?" 0:10 "Three million US micro-businesses take payments with a sticker and a notebook." 0:20 Owner speaks the order in Spanish; items appear, tax added, tip toggled; Charge; QR. 0:50 Customer scans, pays (sandbox); phone says "Paid, $18.40". 1:10 Second sale in English; third in cash. 1:30 Evening: "Close the day" → summary spoken; Maria paid $120 (Payouts, sandbox balance rises); weekly invoice to Blue Oak Café sent; reminder sent; approval card for the tortillería. 2:05 Dashboard AG Grid: "What sold best on rainy days?" 2:25 "Phone, voice, any language. Built on PayPal Invoicing and Payouts in the sandbox." 2:40 Name, repo.
+0:00 Line at a taco truck, a customer asks "do you take cards?" 0:10 "Millions of micro-businesses sell with a sticker and a notebook." 0:20 Owner speaks the order in Spanish; items appear; Charge; QR. 0:45 Customer scans, pays; phone says "Paid, $18.40"; sandbox balance. 1:05 Second sale in English, third in cash. 1:25 "Maria worked today" by voice; bill logged. 1:40 "Close the day": spoken summary; Maria paid $120 (Payouts, sandbox balance rises). 2:00 **The hold**: "This tortilla bill looks like the one paid on Tuesday — check before paying again", both bills on screen; owner taps "Mark as already paid". 2:20 Run close again: nothing paid twice. 2:30 "Sell and settle by talking, in your language, on PayPal Invoicing and Payouts." 2:40 Name, repo.
