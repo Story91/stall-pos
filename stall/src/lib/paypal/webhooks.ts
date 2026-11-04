@@ -3,6 +3,7 @@ import type { Db } from "@/db";
 import { payouts, sales, webhookEvents } from "@/db/schema";
 import { env } from "@/lib/env";
 import { emit } from "@/lib/events";
+import { applyPayoutStatus } from "./payoutStatus";
 import { markPaid } from "@/lib/sales";
 import { paypalFetch } from "./client";
 
@@ -113,17 +114,7 @@ function payoutStatusHandler(status: "SUCCESS" | "FAILED" | "UNCLAIMED"): Handle
       [payout] = await db.select().from(payouts).where(eq(payouts.batchId, batchId));
     }
     if (!payout) return "unmatched" as const;
-    // A late UNCLAIMED must not undo a final status.
-    if (status === "UNCLAIMED" && (payout.status === "SUCCESS" || payout.status === "FAILED")) {
-      return "ignored" as const;
-    }
-    await db
-      .update(payouts)
-      .set(itemId ? { status, itemId } : { status })
-      .where(eq(payouts.id, payout.id));
-
-    emit({ type: "payout.updated", payoutId: payout.id });
-    return "processed" as const;
+    return applyPayoutStatus(db, payout, status, itemId);
   };
 }
 

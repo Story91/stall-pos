@@ -68,7 +68,7 @@ export async function seed(
         {
           businessId,
           name: "Maria",
-          email: "maria@stall.example",
+          email: process.env.SANDBOX_MARIA_EMAIL || "maria@stall.example",
           role: "helper" as const,
           dailyRateCents: 12000,
           maxPerDayCents: 15000,
@@ -77,7 +77,7 @@ export async function seed(
         {
           businessId,
           name: "Tortillería Rosa",
-          email: "rosa@stall.example",
+          email: process.env.SANDBOX_ROSA_EMAIL || "rosa@stall.example",
           role: "supplier" as const,
           dailyRateCents: null,
           maxPerDayCents: 20000,

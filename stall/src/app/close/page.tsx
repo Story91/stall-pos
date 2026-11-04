@@ -5,15 +5,9 @@ import { DecisionCard } from "@/components/close/DecisionCard";
 import { PayoutsList } from "@/components/close/PayoutsList";
 import { ErrorBox, Screen, ScreenHeader, SectionTitle, Spinner } from "@/components/ui";
 import { useClose, type RunNotice } from "@/hooks/useClose";
-import { payeeNames, type LogEntry } from "@/lib/owner/types";
+import { agentNote } from "@/lib/owner/text";
+import { payeeNames } from "@/lib/owner/types";
 import { longDate } from "@/lib/sell/format";
-
-/** The model's own words come from its write_summary call; the summary above it is built from facts. */
-function agentNote(log: LogEntry[]): string | null {
-  const entry = [...log].reverse().find((e) => e.tool === "write_summary");
-  const text = (entry?.input as { text?: unknown } | undefined)?.text;
-  return typeof text === "string" && text.trim() !== "" ? text.trim() : null;
-}
 
 export default function ClosePage() {
   const c = useClose();

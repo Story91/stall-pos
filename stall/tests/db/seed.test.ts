@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { createTestDb } from "@/db/test-db";
 import { seed } from "@/db/seed";
@@ -148,5 +148,24 @@ describe("seed", () => {
     expect(await db.select().from(sales)).toHaveLength(before.sales);
     expect(await db.select().from(shifts)).toHaveLength(before.shifts);
     expect(await db.select().from(payouts)).toHaveLength(before.payouts);
+  });
+
+  it("seeds payees with the real sandbox emails when configured, else the example ones", async () => {
+    vi.stubEnv("SANDBOX_MARIA_EMAIL", "maria-real@personal.example.com");
+    vi.stubEnv("SANDBOX_ROSA_EMAIL", "rosa-real@personal.example.com");
+    await seed(db);
+    expect((await db.select().from(payees)).map((p) => p.email).sort()).toEqual([
+      "maria-real@personal.example.com",
+      "rosa-real@personal.example.com",
+    ]);
+
+    vi.stubEnv("SANDBOX_MARIA_EMAIL", "");
+    vi.stubEnv("SANDBOX_ROSA_EMAIL", "");
+    await seed(db);
+    expect((await db.select().from(payees)).map((p) => p.email).sort()).toEqual([
+      "maria@stall.example",
+      "rosa@stall.example",
+    ]);
+    vi.unstubAllEnvs();
   });
 });

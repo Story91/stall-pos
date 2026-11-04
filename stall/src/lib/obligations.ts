@@ -4,6 +4,7 @@ import type { Bill, Db, Decision, Payee, Payout, Sale, Shift } from "@/db";
 import { agentRuns, bills, decisions, payees, payouts, sales, shifts } from "@/db/schema";
 import { ApiError } from "@/lib/apiError";
 import { businessDate } from "@/lib/dates";
+import { reconcilePayouts, type PayoutReconcileDeps } from "@/lib/payoutReconcile";
 
 export const MAX_BILL_CENTS = 500_000;
 
@@ -121,7 +122,20 @@ export type DayView = {
 };
 
 /** Payouts tied to that day's shifts or bills, or created on that business day. */
-async function payoutsForDate(db: Db, businessId: string, date: string, tz: string): Promise<PayoutWithPayee[]> {
+async function payoutsForDate(
+  db: Db,
+  businessId: string,
+  date: string,
+  tz: string,
+  deps: PayoutReconcileDeps = {},
+): Promise<PayoutWithPayee[]> {
+  const found = await queryPayoutsForDate(db, businessId, date, tz);
+  // Without a webhook a PENDING payout would stay "Sending" forever: ask PayPal.
+  if (await reconcilePayouts(db, found, deps)) return queryPayoutsForDate(db, businessId, date, tz);
+  return found;
+}
+
+async function queryPayoutsForDate(db: Db, businessId: string, date: string, tz: string): Promise<PayoutWithPayee[]> {
   const { from, to } = dayWindow(date);
   const rows = await db
     .select({
@@ -155,7 +169,13 @@ async function decisionsForDate(db: Db, businessId: string, date: string): Promi
     .orderBy(asc(decisions.createdAt));
 }
 
-export async function getDay(db: Db, businessId: string, date: string, tz = "America/Chicago"): Promise<DayView> {
+export async function getDay(
+  db: Db,
+  businessId: string,
+  date: string,
+  tz = "America/Chicago",
+  deps: PayoutReconcileDeps = {},
+): Promise<DayView> {
   const { from, to } = dayWindow(date);
   const saleRows = await db
     .select()
@@ -217,13 +237,19 @@ export async function getDay(db: Db, businessId: string, date: string, tz = "Ame
     totals,
     shifts: shiftRows.map((r) => ({ ...r.shift, payee: r.payee })),
     bills: billRows.map((r) => ({ ...r.bill, payee: r.payee })),
-    payouts: await payoutsForDate(db, businessId, date, tz),
+    payouts: await payoutsForDate(db, businessId, date, tz, deps),
     decisions: await decisionsForDate(db, businessId, date),
   };
 }
 
 /** What the owner sees for a closed day: the agent's run, what it escalated, what it paid. */
-export async function getCloseView(db: Db, businessId: string, date: string, tz = "America/Chicago") {
+export async function getCloseView(
+  db: Db,
+  businessId: string,
+  date: string,
+  tz = "America/Chicago",
+  deps: PayoutReconcileDeps = {},
+) {
   const [run] = await db
     .select()
     .from(agentRuns)
@@ -231,6 +257,6 @@ export async function getCloseView(db: Db, businessId: string, date: string, tz 
   return {
     run: run ?? null,
     decisions: await decisionsForDate(db, businessId, date),
-    payouts: await payoutsForDate(db, businessId, date, tz),
+    payouts: await payoutsForDate(db, businessId, date, tz, deps),
   };
 }

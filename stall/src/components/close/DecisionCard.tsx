@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Spinner } from "@/components/ui";
 import type { DecisionAction, DecisionRow, DecisionStatus, DecisionType } from "@/lib/owner/types";
+import { nearDuplicate, normalize } from "@/lib/owner/text";
 import { formatCents } from "@/lib/sell/format";
 
 export type ActionOutcome = { ok: true } | { ok: false; message: string; conflict: boolean };
@@ -38,19 +39,10 @@ function shortDate(date: string | undefined): string {
   );
 }
 
-const normalize = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
 /** The agent's rationale is worth showing only when it adds something to the rules' reason. */
 function extraRationale(headline: string, rationale: string | null | undefined): string | null {
   if (!rationale) return null;
-  const a = normalize(headline);
-  const b = normalize(rationale);
-  if (!b || a.includes(b) || b.includes(a)) return null;
+  if (!normalize(rationale) || nearDuplicate(headline, rationale)) return null;
   return rationale;
 }
 
