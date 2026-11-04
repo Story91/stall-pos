@@ -15,10 +15,23 @@ export type CloseData = {
   decidedIds: Set<string>;
 };
 
-/** Reads everything the rules engine and the agent need for one business day. */
-export async function loadCloseData(db: Db, businessId: string, date: string): Promise<CloseData> {
+const LIVE: ("PENDING" | "SUCCESS")[] = ["PENDING", "SUCCESS"];
+const isLive = (status: string) => status === "PENDING" || status === "SUCCESS";
+
+/**
+ * Reads everything the rules engine and the agent need for one business day.
+ * Per-day limits always count money sent on the current business date (from `now`),
+ * whatever date is being closed, so closing another day cannot reset them.
+ */
+export async function loadCloseData(
+  db: Db,
+  businessId: string,
+  date: string,
+  now: Date = new Date(),
+): Promise<CloseData> {
   const [business] = await db.select().from(businesses).where(eq(businesses.id, businessId));
   if (!business) throw new Error(`Unknown business ${businessId}`);
+  const today = businessDate(now, business.tz);
 
   const shiftRows = await db
     .select({ id: shifts.id, payee: payees })
@@ -100,6 +113,7 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
     for (const p of rows) existingPayouts.push({ billId: p.billId ?? undefined, status: p.status });
   }
 
+  // Only a live payout is evidence of an earlier payment; a FAILED one paid nothing.
   const paidBillRows = await db
     .select({ bill: bills, batchId: payouts.batchId })
     .from(bills)
@@ -108,6 +122,7 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
       and(
         eq(bills.businessId, businessId),
         eq(bills.status, "paid"),
+        inArray(payouts.status, LIVE),
         gte(bills.date, daysAgo(date, 7)),
         lte(bills.date, date),
       ),
@@ -122,7 +137,7 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
   }));
 
   // Business dates depend on the timezone, so fetch with a generous window and filter exactly.
-  const windowStart = new Date(Date.parse(`${date}T00:00:00Z`) - 36 * 3_600_000);
+  const windowFor = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) - 36 * 3_600_000);
   const payoutRows = await db
     .select({
       amountCents: payouts.amountCents,
@@ -134,11 +149,11 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
     .from(payouts)
     .leftJoin(shifts, eq(payouts.shiftId, shifts.id))
     .leftJoin(bills, eq(payouts.billId, bills.id))
-    .where(and(eq(payouts.businessId, businessId), gte(payouts.createdAt, windowStart)));
+    .where(and(eq(payouts.businessId, businessId), gte(payouts.createdAt, windowFor(today))));
   const paidTodayByPayee: Record<string, number> = {};
   for (const p of payoutRows) {
-    if (p.status !== "PENDING" && p.status !== "SUCCESS") continue;
-    if (businessDate(p.createdAt, business.tz) !== date) continue;
+    if (!isLive(p.status)) continue;
+    if (businessDate(p.createdAt, business.tz) !== today) continue;
     const payeeId = p.shiftPayee ?? p.billPayee;
     if (!payeeId) continue;
     paidTodayByPayee[payeeId] = (paidTodayByPayee[payeeId] ?? 0) + p.amountCents;
@@ -147,7 +162,7 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
   const saleRows = await db
     .select({ total: sales.totalCents, status: sales.status, paidAt: sales.paidAt })
     .from(sales)
-    .where(and(eq(sales.businessId, businessId), gte(sales.paidAt, windowStart)));
+    .where(and(eq(sales.businessId, businessId), gte(sales.paidAt, windowFor(date))));
   const todaysSales = saleRows.filter(
     (s) =>
       (s.status === "paid" || s.status === "paid_cash") &&
@@ -155,9 +170,18 @@ export async function loadCloseData(db: Db, businessId: string, date: string): P
       businessDate(s.paidAt, business.tz) === date,
   );
 
+  // An approval whose payout then failed no longer covers the obligation: it goes back to the owner.
+  const liveIds = new Set(
+    existingPayouts.filter((p) => isLive(p.status)).map((p) => p.shiftId ?? p.billId),
+  );
+  const failedIds = new Set(
+    existingPayouts.map((p) => p.shiftId ?? p.billId).filter((id) => id !== undefined && !liveIds.has(id)),
+  );
   const decidedIds = new Set<string>();
   for (const d of decisionRows) {
     if (d.date !== date && d.status !== "open") continue;
+    const coveredId = d.shiftId ?? d.billId;
+    if (d.status === "approved" && coveredId && failedIds.has(coveredId)) continue;
     if (d.shiftId) decidedIds.add(d.shiftId);
     if (d.billId) decidedIds.add(d.billId);
   }

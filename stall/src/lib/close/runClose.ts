@@ -79,7 +79,7 @@ export async function runClose(
 ): Promise<RunCloseResult> {
   const { businessId, date } = input;
   const now = deps.now;
-  const data = await loadCloseData(db, businessId, date);
+  const data = await loadCloseData(db, businessId, date, now ?? new Date());
 
   const evaluated = evaluateObligations({
     date,
