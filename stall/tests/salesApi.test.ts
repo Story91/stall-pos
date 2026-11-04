@@ -11,6 +11,7 @@ import {
   createSale,
   parseTranscript,
   payCash,
+  resetReconcileThrottle,
   saleStatus,
   toResponse,
 } from "@/lib/salesApi";
@@ -156,6 +157,67 @@ describe("sales API services", () => {
       expect(await saleStatus(db, saleId)).toEqual({ status: "awaiting", totalCents: 1274 });
       expect(await saleStatus(db, "00000000-0000-0000-0000-000000000000")).toBeUndefined();
       expect(await saleStatus(db, "not-a-uuid")).toBeUndefined();
+    });
+  });
+
+  describe("saleStatus reconciliation with PayPal", () => {
+    beforeEach(() => resetReconcileThrottle());
+
+    it("marks an awaiting sale paid when the invoice is PAID", async () => {
+      const { value } = deps();
+      const { saleId } = await createSale(db, value, body("api-rec-paid"));
+      const lookup = vi.fn(async () => "PAID");
+      expect(await saleStatus(db, saleId, { getInvoiceStatus: lookup })).toEqual({
+        status: "paid",
+        totalCents: 1274,
+      });
+      const [row] = await db.select().from(sales).where(eq(sales.id, saleId));
+      expect(row!.status).toBe("paid");
+      expect(row!.paidAt).toBeInstanceOf(Date);
+    });
+
+    it("also accepts MARKED_AS_PAID", async () => {
+      const { value } = deps();
+      const { saleId } = await createSale(db, value, body("api-rec-marked"));
+      const out = await saleStatus(db, saleId, { getInvoiceStatus: async () => "MARKED_AS_PAID" });
+      expect(out?.status).toBe("paid");
+    });
+
+    it("leaves the sale awaiting when the invoice is UNPAID", async () => {
+      const { value } = deps();
+      const { saleId } = await createSale(db, value, body("api-rec-unpaid"));
+      const out = await saleStatus(db, saleId, { getInvoiceStatus: async () => "UNPAID" });
+      expect(out?.status).toBe("awaiting");
+    });
+
+    it("asks PayPal at most once per 3 seconds per sale", async () => {
+      const { value } = deps();
+      const { saleId } = await createSale(db, value, body("api-rec-throttle"));
+      const lookup = vi.fn(async () => "UNPAID");
+      let now = 1_000_000;
+      const d = { getInvoiceStatus: lookup, nowMs: () => now };
+      await saleStatus(db, saleId, d);
+      now += 2_999;
+      await saleStatus(db, saleId, d);
+      expect(lookup).toHaveBeenCalledTimes(1);
+      now += 1;
+      await saleStatus(db, saleId, d);
+      expect(lookup).toHaveBeenCalledTimes(2);
+    });
+
+    it("swallows a PayPal failure and returns the stored status", async () => {
+      const { value } = deps();
+      const { saleId } = await createSale(db, value, body("api-rec-throws"));
+      const log = vi.spyOn(console, "error").mockImplementation(() => {});
+      const out = await saleStatus(db, saleId, {
+        getInvoiceStatus: async () => {
+          throw new PayPalError("boom", 500, "{}");
+        },
+      });
+      expect(out?.status).toBe("awaiting");
+      expect(log).toHaveBeenCalledTimes(1);
+      expect(String(log.mock.calls[0]![0])).toContain(saleId);
+      log.mockRestore();
     });
   });
 

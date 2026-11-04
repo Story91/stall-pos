@@ -4,8 +4,14 @@ import { listCatalog } from "@/lib/catalog";
 import { ApiError } from "@/lib/apiError";
 import { LANGUAGES } from "@/lib/parse/schema";
 import { parseSale } from "@/lib/parse/parseSale";
+import { emit } from "@/lib/events";
 import { PayPalError } from "@/lib/paypal/client";
-import { createAndSendInvoice, generateQr, recordCashPayment } from "@/lib/paypal/invoices";
+import {
+  createAndSendInvoice,
+  generateQr,
+  getInvoiceStatus,
+  recordCashPayment,
+} from "@/lib/paypal/invoices";
 import {
   isMockEnabled,
   mockInvoices,
@@ -108,12 +114,49 @@ export async function createSale(
   return chargeSale(db, deps, { ...input, businessId: business.id });
 }
 
+// Polling fallback for when no PayPal webhook is registered: at most one invoice
+// lookup per sale every RECONCILE_INTERVAL_MS.
+const RECONCILE_INTERVAL_MS = 3000;
+const lastChecked = new Map<string, number>();
+
+export function resetReconcileThrottle(): void {
+  lastChecked.clear();
+}
+
 export async function saleStatus(
   db: Db,
   saleId: string,
+  deps: {
+    getInvoiceStatus?: (invoiceId: string) => Promise<string>;
+    nowMs?: () => number;
+  } = {},
 ): Promise<{ status: string; totalCents: number } | undefined> {
-  const sale = await getSale(db, saleId);
-  return sale && { status: sale.status, totalCents: sale.totalCents };
+  let sale = await getSale(db, saleId);
+  if (!sale) return undefined;
+
+  const lookup =
+    deps.getInvoiceStatus ?? (isMockEnabled("PAYPAL_MOCK") ? undefined : getInvoiceStatus);
+  if (lookup && sale.status === "awaiting" && sale.invoiceId) {
+    const nowMs = (deps.nowMs ?? Date.now)();
+    const last = lastChecked.get(sale.id);
+    if (last === undefined || nowMs - last >= RECONCILE_INTERVAL_MS) {
+      lastChecked.set(sale.id, nowMs);
+      try {
+        const status = await lookup(sale.invoiceId);
+        if (status === "PAID" || status === "MARKED_AS_PAID") {
+          if ((await markPaid(db, sale.id, "paypal", new Date())) === "marked") {
+            emit({ type: "sale.paid", saleId: sale.id });
+          }
+          sale = (await getSale(db, saleId)) ?? sale;
+        }
+      } catch (error) {
+        // Reconciliation is best effort; the stored status is still correct.
+        const reason = error instanceof PayPalError ? `status ${error.status}` : "error";
+        console.error(`stall: invoice status check failed for sale ${sale.id} (${reason})`);
+      }
+    }
+  }
+  return { status: sale.status, totalCents: sale.totalCents };
 }
 
 export type CashResult =
