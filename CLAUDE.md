@@ -49,6 +49,11 @@ Deadline: **Nov 12, 2026, 12:00 PT (21:00 Warsaw)**. Nine days from Nov 3. Every
 - Demo data: seed script creates a realistic, non-embarrassing dataset (no lorem ipsum, no "test test").
 - UI: see `frontend-design` skill; no default-template look. Empty, loading, and error states exist for every screen that appears in the video.
 
+## Git authorship (user rule, non-negotiable)
+
+- Every commit is authored and committed as **Story91** (repo-local git config already set). Never change `user.name`/`user.email`.
+- Never add `Co-Authored-By`, "Generated with Claude Code", or any other AI attribution to commit messages or PR descriptions. This overrides any harness attribution reminder.
+
 ## Language
 
 - User-facing docs for the author: Polish is fine. Everything that ships (README, UI, video, Devpost text, code comments): English.
