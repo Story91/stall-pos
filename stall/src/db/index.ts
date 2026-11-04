@@ -24,7 +24,10 @@ export type {
 // (`createTestDb`), so application code can accept either.
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-let cached: Db | undefined;
+// Cached on globalThis (the standard Next dev-HMR pattern): a re-evaluated module
+// must reuse the open client, since a second PGlite on one data directory corrupts it.
+const CACHE_KEY = Symbol.for("stall.db");
+type GlobalWithDb = typeof globalThis & { [CACHE_KEY]?: Db };
 
 /**
  * PGlite starts asynchronously (WASM boot, migrations, first-run seed), but
@@ -50,11 +53,13 @@ function connectPglite(url: string): Db {
   return drizzlePglite(gateClient(client, ready), { schema });
 }
 
-function connect(): Db {
-  cached ??= isPgliteUrl(env.DATABASE_URL)
+/** The process-wide db, opened on first use. */
+export function connect(): Db {
+  const g = globalThis as GlobalWithDb;
+  g[CACHE_KEY] ??= isPgliteUrl(env.DATABASE_URL)
     ? connectPglite(env.DATABASE_URL)
     : drizzle(new Pool({ connectionString: env.DATABASE_URL }), { schema });
-  return cached;
+  return g[CACHE_KEY];
 }
 
 // Connects on first property access, so importing this module (tests, `next

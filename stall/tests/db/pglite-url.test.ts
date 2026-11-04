@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { businesses } from "@/db/schema";
 import {
   initPglite,
@@ -35,6 +35,27 @@ describe("pglite:// database url", () => {
     const { seeded } = await handle.ensureReady();
     expect(seeded).toBe(false);
     expect((await handle.db.select().from(businesses))[0]!.id).toBe(before);
+  }, 60_000);
+
+  it("reuses one db instance when the module is re-evaluated", async () => {
+    vi.stubEnv("DATABASE_URL", "pglite://memory");
+    vi.stubEnv("PAYPAL_CLIENT_ID", "id");
+    vi.stubEnv("PAYPAL_CLIENT_SECRET", "secret");
+    vi.stubEnv("PAYPAL_WEBHOOK_ID", "wh");
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test");
+    vi.stubEnv("OWNER_PIN", "1234");
+    vi.stubEnv("CLOSE_TRIGGER_KEY", "k");
+    try {
+      vi.resetModules();
+      const first = (await import("@/db")).connect();
+      vi.resetModules();
+      const second = (await import("@/db")).connect();
+      expect(second).toBe(first);
+      expect(await first.select().from(businesses)).toHaveLength(1); // waits for migrate + seed
+    } finally {
+      delete (globalThis as Record<symbol, unknown>)[Symbol.for("stall.db")];
+      vi.unstubAllEnvs();
+    }
   }, 60_000);
 
   it("opens a raw db without migrating", async () => {
