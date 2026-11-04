@@ -8,7 +8,7 @@ Demo business: **La Esquina**, a taco truck in Austin, TX.
 
 ## 90-second judge path
 
-Hosted demo: **`<HOSTED_URL>`** (PayPal sandbox, no real money). Owner PIN: **`1234`**.
+Hosted demo: **<https://stall-ashen.vercel.app>** (PayPal sandbox, no real money). Owner PIN: **`1234`**.
 
 Sandbox buyer login: `sb-fdfde53702808@personal.example.com`, password: see "Sandbox accounts" below.
 
@@ -29,8 +29,8 @@ Payouts settle in about 18 seconds in the sandbox. You can watch Maria's balance
 **Prerequisites:** Node 24 or newer, npm, a free PayPal developer account, an Anthropic API key. No database install is needed.
 
 ```bash
-git clone <REPO_URL>
-cd <REPO>/stall
+git clone https://github.com/Story91/stall-pos.git
+cd stall-pos/stall
 npm install
 cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
 ```
