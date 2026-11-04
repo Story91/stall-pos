@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+
+# local PGlite database (DATABASE_URL=pglite://./.data/stall)
+/.data/
 
 # next.js
 /.next/

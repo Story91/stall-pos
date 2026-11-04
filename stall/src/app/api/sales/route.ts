@@ -1,7 +1,6 @@
 import { db } from "@/db";
 import { requireOwner } from "@/lib/auth";
-import { createAndSendInvoice, generateQr } from "@/lib/paypal/invoices";
-import { createSale, readJson, toResponse } from "@/lib/salesApi";
+import { createSale, invoiceDeps, readJson, toResponse } from "@/lib/salesApi";
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -9,7 +8,7 @@ export async function POST(request: Request): Promise<Response> {
     const body = await readJson(request);
     const result = await createSale(
       db,
-      { invoices: { createAndSendInvoice, generateQr } },
+      { invoices: invoiceDeps().invoices },
       body,
     );
     return Response.json(result);

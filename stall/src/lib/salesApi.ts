@@ -5,6 +5,13 @@ import { ApiError } from "@/lib/apiError";
 import { LANGUAGES } from "@/lib/parse/schema";
 import { parseSale } from "@/lib/parse/parseSale";
 import { PayPalError } from "@/lib/paypal/client";
+import { createAndSendInvoice, generateQr, recordCashPayment } from "@/lib/paypal/invoices";
+import {
+  isMockEnabled,
+  mockInvoices,
+  mockParseSale,
+  mockRecordCashPayment,
+} from "@/lib/paypal/mock";
 import {
   chargeSale,
   getBusiness,
@@ -49,6 +56,26 @@ export const createSaleBody = z.object({
   transcript: z.string().max(2000),
 });
 
+type Env = Record<string, string | undefined>;
+
+/**
+ * PayPal functions the sell routes use. PAYPAL_MOCK=1 swaps in offline fakes
+ * (never in production); everything else talks to the sandbox.
+ */
+export function invoiceDeps(env: Env = process.env): {
+  invoices: SaleInvoices;
+  recordCashPayment: typeof recordCashPayment;
+} {
+  return isMockEnabled("PAYPAL_MOCK", env)
+    ? { invoices: mockInvoices, recordCashPayment: mockRecordCashPayment }
+    : { invoices: { createAndSendInvoice, generateQr }, recordCashPayment };
+}
+
+/** The sale parser: the model, or the fixed smoke-test parser with PARSE_MOCK=1 (never in production). */
+export function parseDep(env: Env = process.env): typeof parseSale {
+  return isMockEnabled("PARSE_MOCK", env) ? mockParseSale : parseSale;
+}
+
 export class ParseFailedError extends Error {
   constructor(cause: unknown) {
     super("The transcript could not be parsed", { cause });
@@ -65,7 +92,7 @@ export async function parseTranscript(
   const business = await getBusiness(db);
   const catalog = await listCatalog(db, business.id);
   try {
-    return await (deps.parse ?? parseSale)({ transcript, language, catalog });
+    return await (deps.parse ?? parseDep())({ transcript, language, catalog });
   } catch (error) {
     throw new ParseFailedError(error);
   }
