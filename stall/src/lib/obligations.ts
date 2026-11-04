@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNotNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Bill, Db, Decision, Payee, Payout, Sale, Shift } from "@/db";
 import { agentRuns, bills, decisions, payees, payouts, sales, shifts } from "@/db/schema";
@@ -108,23 +108,33 @@ export type DayTotals = {
   paypalCents: number;
 };
 
+/** A payout with the payee it went to, resolved through its shift or bill. */
+export type PayoutWithPayee = Payout & { payeeName: string | null; payeeRole: Payee["role"] | null };
+
 export type DayView = {
   sales: Omit<Sale, "qrPng">[];
   totals: DayTotals;
   shifts: (Shift & { payee: Payee })[];
   bills: (Bill & { payee: Payee })[];
-  payouts: Payout[];
+  payouts: PayoutWithPayee[];
   decisions: Decision[];
 };
 
 /** Payouts tied to that day's shifts or bills, or created on that business day. */
-async function payoutsForDate(db: Db, businessId: string, date: string, tz: string): Promise<Payout[]> {
+async function payoutsForDate(db: Db, businessId: string, date: string, tz: string): Promise<PayoutWithPayee[]> {
   const { from, to } = dayWindow(date);
   const rows = await db
-    .select({ payout: payouts, shiftDate: shifts.date, billDate: bills.date })
+    .select({
+      payout: payouts,
+      shiftDate: shifts.date,
+      billDate: bills.date,
+      payeeName: payees.name,
+      payeeRole: payees.role,
+    })
     .from(payouts)
     .leftJoin(shifts, eq(payouts.shiftId, shifts.id))
     .leftJoin(bills, eq(payouts.billId, bills.id))
+    .leftJoin(payees, eq(payees.id, sql`coalesce(${shifts.payeeId}, ${bills.payeeId})`))
     .where(
       and(
         eq(payouts.businessId, businessId),
@@ -134,7 +144,7 @@ async function payoutsForDate(db: Db, businessId: string, date: string, tz: stri
     .orderBy(asc(payouts.createdAt));
   return rows
     .filter((r) => r.shiftDate === date || r.billDate === date || businessDate(r.payout.createdAt, tz) === date)
-    .map((r) => r.payout);
+    .map((r) => ({ ...r.payout, payeeName: r.payeeName, payeeRole: r.payeeRole }));
 }
 
 async function decisionsForDate(db: Db, businessId: string, date: string): Promise<Decision[]> {

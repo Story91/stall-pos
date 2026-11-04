@@ -73,6 +73,9 @@ export type PayoutRow = {
   status: PayoutStatus;
   rationale: string;
   createdAt: string;
+  /** Resolved server-side through the shift or bill, so it works for any date. */
+  payeeName?: string | null;
+  payeeRole?: "helper" | "supplier" | null;
 };
 
 export type DuplicateEvidence = {
@@ -98,7 +101,14 @@ export type DecisionRow = {
   type: DecisionType;
   reason: string;
   status: DecisionStatus;
-  source: { obligation?: DecisionObligation; evidence?: DuplicateEvidence | null };
+  source: {
+    obligation?: DecisionObligation;
+    evidence?: DuplicateEvidence | null;
+    /** The deterministic rules' reason (same as `reason`). */
+    rulesReason?: string;
+    /** The close agent's own words for why it escalated; may echo the rules reason. */
+    agentRationale?: string | null;
+  };
   shiftId: string | null;
   billId: string | null;
 };
@@ -137,5 +147,5 @@ export function payeeNames(day: Pick<DayView, "shifts" | "bills"> | null): Map<s
 }
 
 export function payoutPayee(payout: PayoutRow, names: Map<string, string>): string {
-  return names.get(payout.shiftId ?? payout.billId ?? "") ?? "Payee";
+  return payout.payeeName ?? names.get(payout.shiftId ?? payout.billId ?? "") ?? "Unknown payee";
 }

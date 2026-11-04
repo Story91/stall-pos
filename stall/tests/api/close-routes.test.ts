@@ -248,7 +248,7 @@ describe("close, decisions and day", () => {
     const view = (await (await closeGet(req("GET", `/api/close/${today}`), dateCtx(today))).json()) as {
       run: { summary: string } | null;
       decisions: { id: string; status: string }[];
-      payouts: { batchId: string }[];
+      payouts: { batchId: string; payeeName: string | null; payeeRole: string | null }[];
     };
     expect(view.run?.summary).toBe(result.summary);
     expect(view.decisions.map((d) => d.id).sort()).toEqual(
@@ -256,6 +256,11 @@ describe("close, decisions and day", () => {
     );
     // Payouts made on that business day, including the seed's own earlier payout row.
     expect(view.payouts.map((p) => p.batchId)).toContain(result.paid[0]!.batchId);
+    // Each payout names its payee through its shift or bill, even when that bill is from an earlier day.
+    expect(view.payouts.map((p) => p.payeeName)).toContain("Tortillería Rosa");
+    const rosaPayout = view.payouts.find((p) => p.payeeName === "Tortillería Rosa")!;
+    expect(rosaPayout.payeeRole).toBe("supplier");
+    expect(view.payouts.find((p) => p.batchId === result.paid[0]!.batchId)!.payeeName).toBe("Maria");
 
     const empty = (await (await closeGet(req("GET", "/api/close/2031-01-01"), dateCtx("2031-01-01"))).json()) as {
       run: unknown;
@@ -274,6 +279,7 @@ describe("close, decisions and day", () => {
     expect((day.payouts as { batchId: string }[]).map((p) => p.batchId)).toContain(
       result.paid[0]!.batchId,
     );
+    expect((day.payouts as { payeeName: string | null }[]).map((p) => p.payeeName)).toContain("Tortillería Rosa");
     expect(day.decisions).toHaveLength(2);
     expect(day.bills.length).toBeGreaterThan(0);
     expect(day.totals).toHaveProperty("cashCents");

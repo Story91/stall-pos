@@ -52,6 +52,37 @@ describe("DecisionCard", () => {
     expect(screen.getByText(/already paid on 2026-11-02/)).toBeTruthy(); // the reason
   });
 
+  it("shows the agent's rationale beneath the rules reason when it adds something", () => {
+    const decision: DecisionRow = {
+      ...duplicate,
+      source: { ...duplicate.source, rulesReason: duplicate.reason, agentRationale: "Amounts differ by $5, so I stopped." },
+    };
+    render(<DecisionCard decision={decision} onAction={vi.fn()} />);
+    expect(screen.getByText(duplicate.reason)).toBeTruthy();
+    expect(screen.getByText(/Amounts differ by \$5/)).toBeTruthy();
+  });
+
+  it("hides the agent's rationale when it echoes the rules reason", () => {
+    const decision: DecisionRow = {
+      ...duplicate,
+      source: {
+        ...duplicate.source,
+        rulesReason: duplicate.reason,
+        agentRationale: "possible duplicate: a $240.00 bill for Tortillería Rosa was already paid on 2026-11-02",
+      },
+    };
+    render(<DecisionCard decision={decision} onAction={vi.fn()} />);
+    expect(screen.getAllByText(/already paid on 2026-11-02/)).toHaveLength(1);
+
+    const contained: DecisionRow = {
+      ...duplicate,
+      source: { ...duplicate.source, rulesReason: duplicate.reason, agentRationale: "Possible duplicate" },
+    };
+    cleanup();
+    render(<DecisionCard decision={contained} onAction={vi.fn()} />);
+    expect(screen.queryByTestId("agent-rationale")).toBeNull();
+  });
+
   it("asks to confirm before approving, then calls onAction('approve')", async () => {
     const onAction = vi.fn().mockResolvedValue({ ok: true });
     render(<DecisionCard decision={duplicate} onAction={onAction} />);

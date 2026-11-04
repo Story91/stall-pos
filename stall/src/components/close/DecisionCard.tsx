@@ -38,6 +38,22 @@ function shortDate(date: string | undefined): string {
   );
 }
 
+const normalize = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** The agent's rationale is worth showing only when it adds something to the rules' reason. */
+function extraRationale(headline: string, rationale: string | null | undefined): string | null {
+  if (!rationale) return null;
+  const a = normalize(headline);
+  const b = normalize(rationale);
+  if (!b || a.includes(b) || b.includes(a)) return null;
+  return rationale;
+}
+
 export function DecisionCard({ decision, onAction }: Props) {
   const [confirming, setConfirming] = useState<DecisionAction | null>(null);
   const [working, setWorking] = useState(false);
@@ -45,6 +61,8 @@ export function DecisionCard({ decision, onAction }: Props) {
   const obligation = decision.source.obligation;
   const amount = obligation ? formatCents(obligation.amountCents) : null;
   const who = obligation?.payee.name ?? "this payee";
+  const headline = decision.source.rulesReason ?? decision.reason;
+  const rationale = extraRationale(headline, decision.source.agentRationale);
 
   const confirmText: Record<DecisionAction, { question: string; yes: string }> = {
     approve: {
@@ -90,7 +108,14 @@ export function DecisionCard({ decision, onAction }: Props) {
         )}
       </header>
 
-      <p className="text-lg">{decision.reason}</p>
+      <div className="flex flex-col gap-1">
+        <p className="text-lg">{headline}</p>
+        {rationale && (
+          <p data-testid="agent-rationale" className="text-base text-graphite">
+            Agent: {rationale}
+          </p>
+        )}
+      </div>
 
       {decision.type === "duplicate_bill" && obligation && (
         <div className="grid grid-cols-2 gap-2">

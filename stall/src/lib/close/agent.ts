@@ -164,8 +164,9 @@ export function holdObligation(
     if (outcome.verdict === "skip") return { ok: false, error: `cannot hold: ${outcome.reason}` };
 
     const { obligation } = outcome;
-    const reason =
-      rationale === null ? outcome.reason : `${rationale.slice(0, MAX_RATIONALE)} — ${outcome.reason}`;
+    // The rules' reason is authoritative and is the stored reason; the model's wording is kept apart.
+    const reason = outcome.reason;
+    const agentRationale = rationale === null ? null : rationale.slice(0, MAX_RATIONALE);
     const decisionId = await state.db.transaction(async (tx) => {
       const [row] = await tx
         .insert(decisions)
@@ -174,7 +175,7 @@ export function holdObligation(
           date: state.date,
           type: outcome.decisionType ?? "escalated",
           reason,
-          source: { obligation, evidence: outcome.evidence ?? null },
+          source: { obligation, evidence: outcome.evidence ?? null, rulesReason: reason, agentRationale },
           shiftId: obligation.kind === "shift" ? obligation.id : null,
           billId: obligation.kind === "bill" ? obligation.id : null,
         })

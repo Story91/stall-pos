@@ -302,9 +302,14 @@ describe("agent escalation", () => {
     const rows = await db.select().from(decisions).where(eq(decisions.shiftId, mariaShiftId));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ type: "escalated", status: "open" });
-    expect(rows[0]!.reason).toContain("Maria's rate looks off");
-    expect(rows[0]!.reason).toContain(" — ");
+    // decisions.reason is the authoritative rules reason only; the model's rationale is kept apart.
     expect(rows[0]!.reason).toContain("within Maria's daily limit");
+    expect(rows[0]!.reason).not.toContain("Maria's rate looks off");
+    expect(rows[0]!.reason).not.toContain(" — ");
+    expect(rows[0]!.source).toMatchObject({
+      rulesReason: rows[0]!.reason,
+      agentRationale: "Maria's rate looks off",
+    });
     expect(result.paid).toHaveLength(0);
     expect(result.held).toHaveLength(2);
 
