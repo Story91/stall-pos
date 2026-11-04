@@ -49,7 +49,7 @@ cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
 | `DATABASE_URL` | Keep `pglite://./.data/stall`. Postgres runs in-process, migrates, and seeds La Esquina on first start. Use `pglite://memory` for a throwaway database, or a `postgres://` URL (Neon or local). |
 | `ANTHROPIC_API_KEY` | Your key. |
 | `OWNER_PIN` | 4 to 6 digits; what you type on `/pin`. |
-| `CLOSE_TRIGGER_KEY` | Any long random string. It signs the owner cookie and guards `/api/close?key=`. |
+| `CLOSE_TRIGGER_KEY` | Any long random string. It signs the owner cookie and guards `/api/close?key=`. `CRON_SECRET` (optional locally, set it in Vercel) is the bearer token for the nightly cron in `stall/vercel.json`. |
 | `PAYPAL_WEBHOOK_ID` | Any non-empty value for now; set the real one once you register a webhook (below). |
 
 **3. Run**
@@ -133,7 +133,7 @@ flowchart LR
   Payouts --> PP
 ```
 
-Hosting: Vercel (project root directory `stall`), Postgres on Neon through the Vercel Marketplace, and a Vercel Cron job hitting `/api/close?key=CLOSE_TRIGGER_KEY` at 20:00 for the nightly close.
+Hosting: Vercel (project root directory `stall`), Postgres on Neon through the Vercel Marketplace, and a Vercel Cron job for the nightly close, configured in [`stall/vercel.json`](stall/vercel.json) (`0 2 * * *` UTC, about 20:00 to 21:00 in Chicago). It calls `/api/close` with `Authorization: Bearer <CRON_SECRET>`, so set `CRON_SECRET` in the Vercel project (without it, `CLOSE_TRIGGER_KEY` is the bearer).
 
 ## Sponsor tools
 

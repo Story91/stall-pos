@@ -42,6 +42,18 @@ export function hasCloseKey(request: Request): boolean {
   return key !== null && key !== "" && safeEqual(key, env.CLOSE_TRIGGER_KEY);
 }
 
+/**
+ * True when `Authorization: Bearer <token>` equals CRON_SECRET (what Vercel Cron
+ * sends when that variable is set), falling back to CLOSE_TRIGGER_KEY.
+ */
+export function hasBearerToken(request: Request): boolean {
+  const header = request.headers.get("authorization");
+  const match = header && /^Bearer\s+(\S+)$/i.exec(header);
+  if (!match) return false;
+  const secret = process.env.CRON_SECRET || env.CLOSE_TRIGGER_KEY;
+  return safeEqual(match[1]!, secret);
+}
+
 /** Throws a 401 unless the request carries the owner cookie. Task 17 adds middleware around this. */
 export function requireOwner(request: Request): void {
   if (!isOwner(request)) throw new ApiError(401, "unauthorized");

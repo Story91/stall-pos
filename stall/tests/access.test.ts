@@ -23,6 +23,12 @@ describe("decideAccess", () => {
     expect(decideAccess("/api/pin", "", false)).toBe("allow");
   });
 
+  it("lets Vercel Cron through /api/close when an Authorization header is present", () => {
+    expect(decideAccess("/api/close", "", false, true)).toBe("allow");
+    expect(decideAccess("/api/close", "", false, false)).toBe("unauthorized");
+    expect(decideAccess("/api/sales", "", false, true)).toBe("unauthorized");
+  });
+
   it("lets the scheduler ping /api/close with a key; the route checks the key", () => {
     expect(decideAccess("/api/close", "?key=x", false)).toBe("allow");
   });

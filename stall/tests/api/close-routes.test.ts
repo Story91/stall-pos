@@ -40,7 +40,7 @@ vi.mock("@/lib/parse/parseObligation", () => parser);
 import { POST as shiftPost, DELETE as shiftDelete } from "@/app/api/shifts/route";
 import { POST as billPost } from "@/app/api/bills/route";
 import { POST as parsePost } from "@/app/api/obligations/parse/route";
-import { POST as closePost } from "@/app/api/close/route";
+import { GET as closeGetRoute, POST as closePost } from "@/app/api/close/route";
 import { GET as closeGet } from "@/app/api/close/[date]/route";
 import { POST as decisionPost } from "@/app/api/decisions/[id]/route";
 import { GET as dayGet } from "@/app/api/day/[date]/route";
@@ -316,5 +316,39 @@ describe("close, decisions and day", () => {
     expect((await dayGet(req("GET", "/api/day/yesterday"), dateCtx("yesterday"))).status).toBe(400);
     expect((await closeGet(req("GET", "/api/close/2031-02-30"), dateCtx("2031-02-30"))).status).toBe(400);
     expect((await closePost(req("POST", "/api/close", { date: "soon" }))).status).toBe(400);
+  });
+});
+
+describe("close with a bearer token", () => {
+  const bearer = (token: string, method = "POST") =>
+    new Request("http://localhost/api/close", {
+      method,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+  it("rejects a wrong bearer and a non-bearer scheme with 401", async () => {
+    expect((await closePost(bearer("wrong"))).status).toBe(401);
+    expect((await closeGetRoute(bearer("wrong", "GET"))).status).toBe(401);
+    const basic = new Request("http://localhost/api/close", {
+      method: "POST",
+      headers: { Authorization: `Basic ${KEY}` },
+    });
+    expect((await closePost(basic)).status).toBe(401);
+    expect(paypal.createPayout).not.toHaveBeenCalled();
+  });
+
+  it("accepts CLOSE_TRIGGER_KEY as the bearer when CRON_SECRET is unset", async () => {
+    expect((await closePost(bearer(KEY))).status).toBe(200);
+  });
+
+  it("uses CRON_SECRET when set, and then rejects the trigger key as a bearer", async () => {
+    vi.stubEnv("CRON_SECRET", "cron-secret-for-tests");
+    try {
+      expect((await closePost(bearer(KEY))).status).toBe(401);
+      // Authorised: the day was already closed by the test above, so the close itself answers 400, not 401.
+      expect((await closeGetRoute(bearer("cron-secret-for-tests", "GET"))).status).not.toBe(401);
+    } finally {
+      vi.stubEnv("CRON_SECRET", "");
+    }
   });
 });

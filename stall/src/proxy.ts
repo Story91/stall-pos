@@ -16,7 +16,12 @@ function hasValidCookie(request: NextRequest): boolean {
 
 export function proxy(request: NextRequest): Response {
   const { pathname, search } = request.nextUrl;
-  const access = decideAccess(pathname, search, hasValidCookie(request));
+  const access = decideAccess(
+    pathname,
+    search,
+    hasValidCookie(request),
+    request.headers.has("authorization"),
+  );
   if (access === "allow") return NextResponse.next();
   if (access === "unauthorized") return Response.json({ error: "unauthorized" }, { status: 401 });
   const url = request.nextUrl.clone();
