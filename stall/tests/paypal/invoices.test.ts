@@ -62,6 +62,20 @@ describe("buildInvoicePayload", () => {
     expect(p.items[1]!.unit_amount.value).toBe("3.00");
   });
 
+  it("sends a tax rate with up to three decimals, without trailing zeros", () => {
+    const at = (rate: number) =>
+      buildInvoicePayload({
+        invoiceNumber: "N",
+        lines,
+        totals: computeTotals(lines, rate, null),
+        taxRate: rate,
+        businessName: "B",
+      }).items[0]!.tax!.percent;
+    expect(at(0.08875)).toBe("8.875");
+    expect(at(0.0825)).toBe("8.25");
+    expect(at(0.08)).toBe("8");
+  });
+
   it("puts tax only on taxable items", () => {
     const p = payload(null);
     expect(p.items[0]!.tax?.percent).toBe("8.25");
@@ -97,6 +111,7 @@ describe("createAndSendInvoice", () => {
       .mockResolvedValueOnce({
         id: "INV2-AAAA",
         status: "SENT",
+        amount: { currency_code: "USD", value: "9.74" },
         detail: { metadata: { recipient_view_url: "https://paypal.test/invoice/p/#AAAA" } },
       });
 
@@ -106,6 +121,7 @@ describe("createAndSendInvoice", () => {
     expect(result).toEqual({
       invoiceId: "INV2-AAAA",
       payLink: "https://paypal.test/invoice/p/#AAAA",
+      amountCents: 974,
     });
     expect(mockFetch).toHaveBeenCalledTimes(3);
     expect(mockFetch.mock.calls[0]![0]).toEqual({
@@ -133,6 +149,9 @@ describe("createAndSendInvoice", () => {
       })
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
+        id: "INV2-BBBB",
+        status: "SENT",
+        amount: { currency_code: "USD", value: "9.74" },
         detail: { metadata: { recipient_view_url: "https://paypal.test/p/BBBB" } },
       });
 
@@ -147,7 +166,7 @@ describe("createAndSendInvoice", () => {
     mockFetch
       .mockResolvedValueOnce({ id: "INV2-CCCC" })
       .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ detail: { metadata: {} } });
+      .mockResolvedValueOnce({ id: "INV2-CCCC", status: "SENT", amount: { value: "9.74" }, detail: { metadata: {} } });
     await expect(createAndSendInvoice(payload(null), "d3")).rejects.toThrow(
       /recipient_view_url/,
     );

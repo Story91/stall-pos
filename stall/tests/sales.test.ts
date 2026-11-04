@@ -21,10 +21,12 @@ describe("sales service", () => {
   ];
 
   function fakes() {
-    const createAndSendInvoice = vi.fn(async () => ({
-      invoiceId: "INV2-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
-      payLink: "https://paypal.test/pay/1",
-    }));
+    const createAndSendInvoice = vi.fn(
+      async (): Promise<{ invoiceId: string; payLink: string; amountCents?: number }> => ({
+        invoiceId: "INV2-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        payLink: "https://paypal.test/pay/1",
+      }),
+    );
     const generateQr = vi.fn<(invoiceId: string, requestId: string) => Promise<string>>(
       async () => "BASE64PNG",
     );
@@ -106,6 +108,38 @@ describe("sales service", () => {
     expect(payload.detail.note).toBe("La Esquina");
     expect(payload.items.map((i) => i.name)).toEqual(["Tacos", "Horchata", "Tip"]);
     expect(generateQr).toHaveBeenCalledWith(row!.invoiceId, "draft-a-qr");
+  });
+
+  it("stores PayPal's invoice total when it differs, moving the difference into tax", async () => {
+    const { deps, createAndSendInvoice } = fakes();
+    createAndSendInvoice.mockImplementationOnce(async () => ({
+      invoiceId: "INV2-ROUND",
+      payLink: "https://paypal.test/pay/1",
+      amountCents: 1491, // PayPal rounded the tax per line: one cent more than our 1490
+    }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await chargeSale(db, deps, input("draft-round", { tipPct: 18 }));
+    expect(warn).toHaveBeenCalledWith("invoice total adjusted", { draftId: "draft-round", ours: 1490, paypal: 1491 });
+    warn.mockRestore();
+    expect(result.totalCents).toBe(1491);
+    const [row] = await db.select().from(sales).where(eq(sales.id, result.saleId));
+    expect(row).toMatchObject({ subtotalCents: 1200, taxCents: 75, tipCents: 216, totalCents: 1491 });
+    expect(row!.subtotalCents + row!.taxCents + row!.tipCents).toBe(row!.totalCents);
+  });
+
+  it("keeps our totals and logs nothing when PayPal's total agrees", async () => {
+    const { deps, createAndSendInvoice } = fakes();
+    createAndSendInvoice.mockImplementationOnce(async () => ({
+      invoiceId: "INV2-SAME",
+      payLink: "https://paypal.test/pay/1",
+      amountCents: 1490,
+    }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await chargeSale(db, deps, input("draft-same", { tipPct: 18 }));
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+    const [row] = await db.select().from(sales).where(eq(sales.id, result.saleId));
+    expect(row).toMatchObject({ taxCents: 74, totalCents: 1490 });
   });
 
   it("is idempotent on draftId: two charges, one row, one invoice", async () => {

@@ -14,7 +14,7 @@ export type SaleInvoices = {
   createAndSendInvoice(
     payload: ReturnType<typeof buildInvoicePayload>,
     requestId: string,
-  ): Promise<{ invoiceId: string; payLink: string }>;
+  ): Promise<{ invoiceId: string; payLink: string; amountCents?: number }>;
   generateQr(invoiceId: string, requestId: string): Promise<string>;
 };
 
@@ -99,7 +99,7 @@ export async function chargeSale(
   const lines: Line[] = input.lines.map(
     ({ name, qty, unitCents, taxable }) => ({ name, qty, unitCents, taxable }),
   );
-  const totals = computeTotals(lines, taxRate, input.tipPct);
+  const ours = computeTotals(lines, taxRate, input.tipPct);
 
   const { result, created } = await db.transaction(async (tx) => {
     const [draft] = await tx
@@ -109,7 +109,7 @@ export async function chargeSale(
         draftId: input.draftId,
         status: "draft",
         lines,
-        ...totals,
+        ...ours,
         language: input.language,
         transcript: input.transcript,
       })
@@ -128,7 +128,7 @@ export async function chargeSale(
     const payload = buildInvoicePayload({
       invoiceNumber: number,
       lines,
-      totals,
+      totals: ours,
       taxRate,
       businessName: business.name,
     });
@@ -142,9 +142,24 @@ export async function chargeSale(
       step = "qr";
       const qrPng = await deps.invoices.generateQr(invoiceId, `${input.draftId}-qr`);
       step = "save";
+      // PayPal rounds tax per line, so its total is the one the customer pays: store it,
+      // and move the difference into tax so subtotal + tax + tip still adds up.
+      let totalCents = ours.totalCents;
+      let taxCents = ours.taxCents;
+      if (created.amountCents !== undefined && created.amountCents !== ours.totalCents) {
+        console.warn("invoice total adjusted", {
+          draftId: input.draftId,
+          ours: ours.totalCents,
+          paypal: created.amountCents,
+        });
+        taxCents += created.amountCents - ours.totalCents;
+        totalCents = created.amountCents;
+      }
       await tx
         .update(sales)
         .set({
+          totalCents,
+          taxCents,
           status: "awaiting",
           invoiceId,
           invoiceNumber: number,
@@ -153,7 +168,7 @@ export async function chargeSale(
         })
         .where(eq(sales.id, draft.id));
       return {
-        result: { saleId: draft.id, qrPng, payLink: created.payLink, totalCents: totals.totalCents },
+        result: { saleId: draft.id, qrPng, payLink: created.payLink, totalCents },
         created: true,
       };
     } catch (error) {

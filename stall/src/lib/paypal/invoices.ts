@@ -1,5 +1,6 @@
 import type { computeTotals, Line } from "@/lib/money";
-import { PayPalError, paypalFetch, toMoney } from "./client";
+import { fromMoney, PayPalError, paypalFetch, toMoney } from "./client";
+import { invoiceCreateSchema, invoiceGetSchema, invoiceStatusSchema, parseResponse } from "./schemas";
 
 type Money = { currency_code: "USD"; value: string };
 
@@ -27,9 +28,14 @@ const usd = (cents: number): Money => ({
   value: toMoney(cents),
 });
 
+/** "8.875" for 0.08875, "8.25" for 0.0825, "8" for 0.08: up to three decimals, no trailing zeros. */
+export function taxPercent(taxRate: number): string {
+  return (taxRate * 100).toFixed(3).replace(/\.?0+$/, "");
+}
+
 /**
- * Totals are not sent: PayPal computes them from the items. Our own totals
- * (from `computeTotals`) are what we store, so the two must agree.
+ * Totals are not sent: PayPal computes them from the items, rounding tax per
+ * line. PayPal's total is authoritative; `chargeSale` stores it if ours differs.
  */
 export function buildInvoicePayload(input: {
   invoiceNumber: string;
@@ -38,7 +44,7 @@ export function buildInvoicePayload(input: {
   taxRate: number;
   businessName: string;
 }): InvoicePayload {
-  const percent = (input.taxRate * 100).toFixed(2);
+  const percent = taxPercent(input.taxRate);
   const items: InvoiceItem[] = input.lines.map((line) => ({
     name: line.name,
     quantity: String(line.qty),
@@ -80,21 +86,25 @@ export class PartialInvoiceError extends Error {
 
 /**
  * Creates the invoice, marks it sent without emailing anyone (the customer pays
- * by scanning the QR / opening the link), and reads back the payer-facing link.
+ * by scanning the QR / opening the link), and reads back the payer-facing link
+ * and PayPal's own total.
  */
 export async function createAndSendInvoice(
   payload: InvoicePayload,
   requestId: string,
-): Promise<{ invoiceId: string; payLink: string }> {
-  const created = await paypalFetch<{ id?: string; href?: string }>({
-    method: "POST",
-    path: "/v2/invoicing/invoices",
-    body: payload,
-    requestId,
-  });
+): Promise<{ invoiceId: string; payLink: string; amountCents: number }> {
+  const created = parseResponse(
+    invoiceCreateSchema,
+    await paypalFetch<unknown>({
+      method: "POST",
+      path: "/v2/invoicing/invoices",
+      body: payload,
+      requestId,
+    }),
+  );
   // Depending on the Prefer header PayPal returns the full invoice or only
   // { rel, href, method }, whose last path segment is the id.
-  const invoiceId = created?.id ?? created?.href?.split("/").filter(Boolean).pop();
+  const invoiceId = created.id ?? created.href?.split("/").filter(Boolean).pop();
   if (!invoiceId) {
     throw new Error("PayPal create invoice response had neither id nor href");
   }
@@ -110,21 +120,19 @@ export async function createAndSendInvoice(
     throw new PartialInvoiceError(invoiceId, "send", error);
   }
 
-  let payLink: string | undefined;
   try {
-    const invoice = await paypalFetch<{
-      detail?: { metadata?: { recipient_view_url?: string } };
-    }>({ method: "GET", path: `/v2/invoicing/invoices/${invoiceId}` });
-    payLink = invoice?.detail?.metadata?.recipient_view_url;
-    if (!payLink) {
-      throw new Error(
-        `PayPal invoice ${invoiceId} has no detail.metadata.recipient_view_url`,
-      );
-    }
+    const invoice = parseResponse(
+      invoiceGetSchema,
+      await paypalFetch<unknown>({ method: "GET", path: `/v2/invoicing/invoices/${invoiceId}` }),
+    );
+    return {
+      invoiceId,
+      payLink: invoice.detail.metadata.recipient_view_url,
+      amountCents: fromMoney(invoice.amount.value),
+    };
   } catch (error) {
     throw new PartialInvoiceError(invoiceId, "read", error);
   }
-  return { invoiceId, payLink };
 }
 
 // The QR endpoint answers with a multipart/form-data body (or, in other
@@ -194,9 +202,9 @@ export async function recordCashPayment(
 }
 
 export async function getInvoiceStatus(invoiceId: string): Promise<string> {
-  const invoice = await paypalFetch<{ status: string }>({
-    method: "GET",
-    path: `/v2/invoicing/invoices/${invoiceId}`,
-  });
+  const invoice = parseResponse(
+    invoiceStatusSchema,
+    await paypalFetch<unknown>({ method: "GET", path: `/v2/invoicing/invoices/${invoiceId}` }),
+  );
   return invoice.status;
 }

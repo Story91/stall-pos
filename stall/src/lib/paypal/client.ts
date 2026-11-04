@@ -1,4 +1,5 @@
 import { env } from "@/lib/env";
+import { parseResponse, tokenSchema } from "./schemas";
 
 export const PAYPAL_HOST = {
   sandbox: "https://api-m.sandbox.paypal.com",
@@ -87,12 +88,21 @@ export async function getAccessToken(
     );
   }
 
-  const data = JSON.parse(text) as { access_token: string; expires_in: number };
+  const data = parseResponse(tokenSchema, parseJson(text));
   tokenCache = {
     token: data.access_token,
     refreshAt: Date.now() + data.expires_in * 1000 - REFRESH_MARGIN_MS,
   };
   return data.access_token;
+}
+
+/** JSON.parse that maps a non-JSON body to undefined, so the schema reports it without echoing it. */
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }
 
 function parseDebugId(text: string): string | undefined {

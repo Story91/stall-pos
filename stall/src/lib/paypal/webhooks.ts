@@ -6,6 +6,7 @@ import { emit } from "@/lib/events";
 import { applyPayoutStatus } from "./payoutStatus";
 import { markPaid } from "@/lib/sales";
 import { paypalFetch } from "./client";
+import { parseResponse, webhookVerifySchema } from "./schemas";
 
 export type WebhookEvent = {
   id: string;
@@ -39,9 +40,7 @@ export async function verifyWebhookSignature(
     return false;
   }
 
-  const result = await (deps.paypalFetch ?? paypalFetch)<{
-    verification_status?: string;
-  }>({
+  const response = await (deps.paypalFetch ?? paypalFetch)<unknown>({
     method: "POST",
     path: "/v1/notifications/verify-webhook-signature",
     body: {
@@ -54,7 +53,7 @@ export async function verifyWebhookSignature(
       webhook_event: JSON.parse(rawBody),
     },
   });
-  return result?.verification_status === "SUCCESS";
+  return parseResponse(webhookVerifySchema, response).verification_status === "SUCCESS";
 }
 
 type Handler = (db: Db, event: WebhookEvent) => Promise<"processed" | "unmatched" | "ignored">;
