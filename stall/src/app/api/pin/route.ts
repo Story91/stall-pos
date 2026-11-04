@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { OWNER_COOKIE, ownerCookieValue, safeEqual } from "@/lib/auth";
+import { OWNER_COOKIE, ownerCookieSecure, ownerCookieValue, safeEqual } from "@/lib/auth";
 import { env } from "@/lib/env";
 import {
   limiterKeys,
@@ -50,7 +50,7 @@ export async function POST(request: Request): Promise<Response> {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        secure: env.APP_URL.startsWith("https"),
+        secure: ownerCookieSecure(env.APP_URL),
         maxAge: THIRTY_DAYS_S,
       });
       return response;

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { decideAccess } from "@/lib/access";
 
@@ -47,6 +48,21 @@ describe("decideAccess", () => {
   it("allows everything with a valid cookie", () => {
     expect(decideAccess("/sell", "", true)).toBe("allow");
     expect(decideAccess("/api/sales", "", true)).toBe("allow");
+  });
+});
+
+describe("safeNext control characters", () => {
+  it("rejects NUL, other C0 controls and DEL anywhere in the path", async () => {
+    const { safeNext } = await import("@/lib/access");
+    for (const bad of ["/day\u0000", "/\u0009/evil.test", "/day\u001f", "/day\u007f"]) {
+      expect(safeNext(bad)).toBe("/sell");
+    }
+    expect(safeNext("/day")).toBe("/day");
+  });
+
+  it("is plain text in the repo: no raw control bytes in the source", () => {
+    const source = readFileSync("src/lib/access.ts", "utf8");
+    expect(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(source)).toBe(false);
   });
 });
 

@@ -5,6 +5,11 @@ import { env } from "@/lib/env";
 export const OWNER_COOKIE = "stall_owner";
 
 /** Cookie value that proves the owner entered the PIN: HMAC-SHA256(OWNER_PIN) keyed with CLOSE_TRIGGER_KEY, hex. */
+/** The owner cookie is Secure in production, on Vercel, or whenever the app is served over https. */
+export function ownerCookieSecure(appUrl: string, e: Record<string, string | undefined> = process.env): boolean {
+  return e.NODE_ENV === "production" || Boolean(e.VERCEL) || appUrl.startsWith("https:");
+}
+
 export function ownerCookieValue(): string {
   return createHmac("sha256", env.CLOSE_TRIGGER_KEY).update(env.OWNER_PIN).digest("hex");
 }
