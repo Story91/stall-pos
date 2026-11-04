@@ -59,6 +59,21 @@ describe("PayeeChips", () => {
     expect(onToggle).not.toHaveBeenCalled();
   });
 
+  it("hides the shift chip for a helper with no daily rate, unless a shift is already logged", () => {
+    const noRate = { ...helper("p-ana", "Ana"), dailyRateCents: null };
+    const props = { busy: new Set<string>(), messages: {}, onToggle: vi.fn() };
+    render(<PayeeChips payees={[...payees, noRate]} worked={new Set()} {...props} />);
+    expect(screen.queryByRole("button", { name: /Ana/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Maria/ })).toBeTruthy();
+    cleanup();
+    // An existing shift stays visible so it can still be removed.
+    render(<PayeeChips payees={[noRate]} worked={new Set(["p-ana"])} {...props} />);
+    expect(screen.getByRole("button", { name: /Ana/ })).toBeTruthy();
+    cleanup();
+    render(<PayeeChips payees={[noRate]} worked={new Set()} {...props} />);
+    expect(screen.getByText(/No helpers with a daily rate yet/)).toBeTruthy();
+  });
+
   it("explains what to do when there are no helpers", () => {
     render(<PayeeChips payees={[]} worked={new Set()} busy={new Set()} messages={{}} onToggle={vi.fn()} />);
     expect(screen.getByText(/No helpers yet/)).toBeTruthy();

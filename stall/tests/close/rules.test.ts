@@ -188,7 +188,9 @@ describe("evaluateObligations", () => {
 
     expect(outcome?.verdict).toBe("hold");
     expect(outcome?.decisionType).toBe("over_limit");
-    expect(outcome?.reason).toContain("no daily rate configured");
+    expect(outcome?.reason).toBe(
+      "Maria has no daily rate set; add one in Settings before this shift can be paid.",
+    );
   });
 
   it("holds the second shift over_limit when the business daily cap would be exceeded", () => {

@@ -14,11 +14,21 @@ type Props = {
   onToggle(payeeId: string, worked: boolean): void;
 };
 
-export function PayeeChips({ payees, worked, busy, messages, onToggle }: Props) {
-  if (payees.length === 0) {
+export function PayeeChips({ payees: all, worked, busy, messages, onToggle }: Props) {
+  if (all.length === 0) {
     return (
       <p className="text-lg text-graphite">
         No helpers yet. Helpers you add in Settings show here, ready to tap.
+      </p>
+    );
+  }
+  // A shift without a daily rate could never be paid, so there is no chip to log one;
+  // a shift already logged stays visible so it can be removed.
+  const payees = all.filter((p) => p.dailyRateCents !== null || worked.has(p.id));
+  if (payees.length === 0) {
+    return (
+      <p className="text-lg text-graphite">
+        No helpers with a daily rate yet. Set one in Settings to log shifts here.
       </p>
     );
   }

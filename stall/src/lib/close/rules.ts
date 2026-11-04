@@ -129,7 +129,7 @@ function evaluateOne(obligation: Obligation, input: EvaluateInput, state: RunSta
   if (amountCents === null) {
     return outcome(
       "hold",
-      `Shift logged for ${name}, but no daily rate configured; set one before this can be paid.`,
+      `${name} has no daily rate set; add one in Settings before this shift can be paid.`,
       { decisionType: "over_limit" },
     );
   }
