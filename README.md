@@ -10,11 +10,11 @@ Demo business: **La Esquina**, a taco truck in Austin, TX.
 
 Hosted demo: **<https://stall-ashen.vercel.app>** (PayPal sandbox, no real money). Owner PIN: **`1234`**.
 
-Sandbox buyer login: `sb-fdfde53702808@personal.example.com`, password: see "Sandbox accounts" below.
+No login is needed to pay: PayPal's sandbox invoice page accepts **Debit or Credit Card** as a guest (use a test card from the Credit Card Generator in your PayPal Developer Dashboard), or you can log in with any PayPal sandbox Personal account.
 
 1. Open the URL on your phone (or a desktop browser) and enter PIN `1234`. You land on **Sell**.
 2. Type the order in the text box, for example `two tacos al pastor and an agua fresca`, tap **Read order**, check the items, tap **Charge**.
-3. A PayPal invoice QR appears with "Waiting for payment". Scan it, or tap **Copy pay link** and open it in another browser, log in as the sandbox buyer and pay.
+3. A PayPal invoice QR appears with "Waiting for payment". Scan it, or tap **Copy pay link** and open it in another browser, then pay with **Debit or Credit Card** (sandbox test card) or a sandbox PayPal account. Or tap **Paid in cash** to finish the sale without PayPal.
 4. As soon as PayPal reports the invoice paid, Sell flips to a full-screen **Paid**.
 5. Open **Day**. Today's sales, tax and tips are listed, and two obligations are already logged: Maria's shift and a tortillas bill.
 6. Tap **Close the day** (you land on **Close**).
@@ -160,16 +160,20 @@ From the repository root, `node scripts/smoke-test.mjs` runs a live sandbox smok
 
 ## Sandbox accounts
 
-For judges. All are PayPal **sandbox** accounts; no real money exists.
+All demo money is PayPal **sandbox** money; nothing real moves. Judges need **no account of ours**:
 
-| Role | Email | Password |
-|---|---|---|
-| Customer (buyer; use it to pay the QR) | `sb-fdfde53702808@personal.example.com` | `<SANDBOX_BUYER_PASSWORD>` |
-| Maria (helper; receives the $120 payout) | `sb-rukiy53702809@personal.example.com` | not needed for judging |
-| Tortillería Rosa (supplier) | `sb-g0any53702812@personal.example.com` | not needed for judging |
-| La Esquina (business; receives sales) | `sb-7dvsg53656715@business.example.com` | not needed for judging |
+- **Pay an invoice:** on the PayPal page the QR or pay link opens, choose **Debit or Credit Card** and use a test card from the Credit Card Generator in your PayPal Developer Dashboard, or log in with any sandbox Personal account of your own. **Paid in cash** finishes a sale with no PayPal step at all.
+- **Watch payouts:** the Close screen shows each payout's status as PayPal reports it (Sending, then Paid).
 
-Only the customer account is needed: use it on the PayPal page that the QR or pay link opens. The Close screen shows each payout's status as PayPal reports it, so no other login is required. To finish a sale without any PayPal login, tap **Paid in cash**. The hosted demo's owner PIN is `1234`.
+The demo's own sandbox accounts, for reference only:
+
+| Role | Sandbox email |
+|---|---|
+| Maria (helper; receives the $120 payout) | `sb-rukiy53702809@personal.example.com` |
+| Tortillería Rosa (supplier) | `sb-g0any53702812@personal.example.com` |
+| La Esquina (business; receives sales) | `sb-7dvsg53656715@business.example.com` |
+
+The hosted demo's owner PIN is `1234`.
 
 ## Repository layout
 
