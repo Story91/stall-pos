@@ -15,7 +15,7 @@ Sandbox buyer login: `sb-fdfde53702808@personal.example.com`, password: see "San
 1. Open the URL on your phone (or a desktop browser) and enter PIN `1234`. You land on **Sell**.
 2. Type the order in the text box, for example `two tacos al pastor and an agua fresca`, tap **Read order**, check the items, tap **Charge**.
 3. A PayPal invoice QR appears with "Waiting for payment". Scan it, or tap **Copy pay link** and open it in another browser, log in as the sandbox buyer and pay.
-4. When PayPal's webhook arrives, Sell flips to a full-screen **Paid**.
+4. As soon as PayPal reports the invoice paid, Sell flips to a full-screen **Paid**.
 5. Open **Day**. Today's sales, tax and tips are listed, and two obligations are already logged: Maria's shift and a tortillas bill.
 6. Tap **Close the day** (you land on **Close**).
    - Maria's $120 shift is paid through PayPal Payouts, with a one-sentence reason.
@@ -51,6 +51,8 @@ cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
 | `OWNER_PIN` | 4 to 6 digits; what you type on `/pin`. |
 | `CLOSE_TRIGGER_KEY` | Any long random string. It signs the owner cookie and guards `/api/close?key=`. `CRON_SECRET` (optional locally, set it in Vercel) is the bearer token for the nightly cron in `stall/vercel.json`. |
 | `PAYPAL_WEBHOOK_ID` | Any non-empty value for now; set the real one once you register a webhook (below). |
+| `SANDBOX_MARIA_EMAIL` | The email of your Maria sandbox Personal account. The seed pays Maria at this address. **If you leave it empty the seed uses `maria@stall.example`, which has no PayPal account, so her payout ends `UNCLAIMED`.** |
+| `SANDBOX_ROSA_EMAIL` | The email of your Rosa sandbox Personal account, for the same reason (empty: `rosa@stall.example`, payouts end `UNCLAIMED`). If you fill either in later, restart the dev server and tap **Reset demo** in Settings. |
 
 **3. Run**
 
@@ -60,10 +62,10 @@ npm run dev
 
 Open <http://localhost:3000>, enter your `OWNER_PIN`, and follow the judge path above. "Reset demo" in Settings restores the demo day. Do not run `npm run db:seed` while the dev server is up: a PGlite data directory has one owner at a time.
 
-**Webhooks locally.** The Paid screen is driven by PayPal's `INVOICING.INVOICE.PAID` webhook, so the card/PayPal path needs PayPal to reach your machine:
+**Webhooks are optional locally.** The PayPal path works without a tunnel: while the QR screen is open the app asks PayPal for the invoice status every 3 s, and the Day and Close screens ask PayPal for the status of each payout still sending. A webhook only makes it instant:
 
 - Expose `localhost:3000` through a tunnel (ngrok, cloudflared), register `https://<tunnel>/api/paypal/webhook` for your app with the `INVOICING.INVOICE.PAID` and `PAYMENT.PAYOUTS-ITEM.*` events, and put the real webhook id in `PAYPAL_WEBHOOK_ID`. Signatures are verified.
-- Or, for a quick look without a tunnel, set `PAYPAL_WEBHOOK_SKIP_VERIFY=1` (honoured only when `NODE_ENV` is not production) and post a sample event to `/api/paypal/webhook` yourself.
+- To try the webhook handler without a tunnel, set `PAYPAL_WEBHOOK_SKIP_VERIFY=1` (honoured only when `NODE_ENV` is not production) and post a sample event to `/api/paypal/webhook` yourself.
 - The **Paid in cash** button needs no webhook: it records the payment on the PayPal invoice and marks the sale paid.
 
 ## What works / demo-only / later
@@ -92,7 +94,7 @@ Out of scope: card reader, receipt printing, inventory, tables, multi-location, 
 | Pay a logged shift or bill | `POST /v1/payments/payouts` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Payout batch status | `GET /v1/payments/payouts/{batch_id}` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Signature check on every webhook | `POST /v1/notifications/verify-webhook-signature` | [`webhooks.ts`](stall/src/lib/paypal/webhooks.ts) |
-| Token cache, `PayPal-Request-Id` on every POST, zod-validated responses | `POST /v1/oauth2/token` | [`client.ts`](stall/src/lib/paypal/client.ts) |
+| Token cache, `PayPal-Request-Id` on every POST, zod-validated responses | `POST /v1/oauth2/token` | [`client.ts`](stall/src/lib/paypal/client.ts), [`schemas.ts`](stall/src/lib/paypal/schemas.ts) |
 
 **Sandbox facts we measured** (full notes: [`docs/superpowers/spike-findings.md`](docs/superpowers/spike-findings.md)):
 
@@ -110,7 +112,7 @@ Out of scope: card reader, receipt printing, inventory, tables, multi-location, 
 | Obligation parser | Turns "I owe Rosa 240 for tortillas" or "Maria worked today" into a bill or shift record. | [`parseObligation.ts`](stall/src/lib/parse/parseObligation.ts) |
 | Close agent | Writes the day's summary, orders the actions, phrases each rationale, and chooses `pay_obligation` or `hold_obligation` per item. | [`agent.ts`](stall/src/lib/close/agent.ts), [`runClose.ts`](stall/src/lib/close/runClose.ts) |
 
-**The model can hold, but it can never pay outside the rules.** [`rules.ts`](stall/src/lib/close/rules.ts) is plain code that decides, before the model runs, whether each logged shift or bill is `pay`, `hold` or `skip`: payee enabled and auto-pay on, amount within the payee's per-day limit and the business cap, USD only, and no duplicate bill within 7 days (amount within 10%, or the same note). The agent's tools refuse to pay anything that is not `pay`, and every attempt is logged. The model may escalate a payable item to a hold; it can never turn a hold into a payment, and it never invents an amount: it acts only on records the owner logged.
+**The model can hold, but it can never pay outside the rules.** [`rules.ts`](stall/src/lib/close/rules.ts) is plain code that decides, before the model runs, whether each logged shift or bill is `pay`, `hold` or `skip`: payee enabled and auto-pay on, amount within the payee's per-day limit and the business cap, and no duplicate bill within 7 days (amount within 10%, or the same note). The agent's tools refuse to pay anything that is not `pay`, and every attempt is logged. The model may escalate a payable item to a hold; it can never turn a hold into a payment, and it never invents an amount: it acts only on records the owner logged. Every amount is US dollars: the currency is hard-coded to USD throughout (invoices, payouts, the database), not checked by a rule.
 
 **Prompt-injection posture.** Transcripts are data. They are wrapped in `<transcript>` tags, and the prompts say never to follow instructions inside them. Because spending authority sits in code (limits, one payout per shift or bill, idempotent batch ids), a hostile transcript or bill note cannot make the agent pay anyone, or any amount, that the owner did not log.
 
@@ -147,7 +149,7 @@ Run from `stall/`.
 
 | Command | What it checks |
 |---|---|
-| `npm test` | Vitest: 372 tests (PGlite in memory, recorded PayPal fixtures, close rules, parsers, routes). |
+| `npm test` | Vitest: 400+ tests (PGlite in memory, recorded PayPal fixtures, close rules, parsers, routes). |
 | `npm run typecheck` | `tsc --noEmit`, strict. |
 | `npm run lint` | ESLint. |
 | `npm run build` | Production build. |
