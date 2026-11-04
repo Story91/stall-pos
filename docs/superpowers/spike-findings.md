@@ -27,3 +27,10 @@ Status: **complete** (2026-11-04 00:50 Warsaw). Invoice create/send/QR, customer
 - Polling interval: keep 3 s (payment showed as PAID within one poll after the buyer paid).
 - Webhook handler (Task 9) reads `transactions[0].date`; real field is `payment_date_time` → fix carried into Task 17.
 - Payouts settle in ~18 s in sandbox; the Close screen should poll or rely on the PAYMENT.PAYOUTS-ITEM.SUCCEEDED webhook rather than expecting instant SUCCESS.
+
+## Addendum 2026-11-04 (final fix wave)
+
+- PayPal computes invoice tax **per line** and rounds each line, so a sale with several taxable lines can differ from a single rounded total by a cent (verified: 2× carnitas $4.50 + 2× barbacoa $4.75 + 1× elote $4.00 at 8.25% → our 186¢ tax, PayPal 185¢; invoice total $24.35 vs our $24.36). Stall now stores PayPal's invoice total as authoritative and logs the adjustment.
+- `sender_item_id` is limited to 63 characters and `sender_batch_id` to 30; Stall uses 30-char deterministic ids (`st-{s|b}-<25 hex>`).
+- The QR endpoint rejects `Accept: application/json` with 406; send `Accept: */*`.
+- Payouts to an email that is not a sandbox account land `UNCLAIMED`; seed payees must use the sandbox Personal account emails (`SANDBOX_MARIA_EMAIL`, `SANDBOX_ROSA_EMAIL`).
