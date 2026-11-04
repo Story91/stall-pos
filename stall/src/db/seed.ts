@@ -127,6 +127,7 @@ export async function seed(
       for (let i = 0; i < count; i++) {
         n++;
         const combo = SALE_COMBOS[(n * 5 + ago) % SALE_COMBOS.length]!;
+        const paidAt = new Date(Date.parse(`${date}T17:00:00Z`) + i * 47 * 60_000);
         const language = n % 3 === 0 ? "es" : "en";
         const lines: Line[] = combo.items.map(([name, qty]) => ({
           name,
@@ -148,7 +149,8 @@ export async function seed(
           totalCents: totals.totalCents,
           language,
           transcript: language === "es" ? combo.es : combo.en,
-          paidAt: new Date(Date.parse(`${date}T17:00:00Z`) + i * 47 * 60_000),
+          createdAt: new Date(paidAt.getTime() - 2 * 60_000),
+          paidAt,
         });
       }
     }

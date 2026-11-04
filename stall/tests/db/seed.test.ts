@@ -28,6 +28,17 @@ describe("seed", () => {
     await close();
   });
 
+  it("dates history sales in the past: createdAt is 2 minutes before paidAt, never today", async () => {
+    const today = businessDate(new Date(), "America/Chicago");
+    const rows = await db.select().from(sales);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const sale of rows) {
+      expect(sale.paidAt).toBeInstanceOf(Date);
+      expect(sale.paidAt!.getTime() - sale.createdAt.getTime()).toBe(2 * 60_000);
+      expect(businessDate(sale.createdAt, "America/Chicago")).not.toBe(today);
+    }
+  });
+
   it("creates the La Esquina business", async () => {
     const rows = await db.select().from(businesses);
     expect(rows).toHaveLength(1);

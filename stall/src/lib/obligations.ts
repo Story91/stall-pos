@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte, or } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import type { Bill, Db, Decision, Payee, Payout, Sale, Shift } from "@/db";
 import { agentRuns, bills, decisions, payees, payouts, sales, shifts } from "@/db/schema";
@@ -150,10 +150,20 @@ export async function getDay(db: Db, businessId: string, date: string, tz = "Ame
   const saleRows = await db
     .select()
     .from(sales)
-    .where(and(eq(sales.businessId, businessId), gte(sales.createdAt, from), lte(sales.createdAt, to)))
-    .orderBy(asc(sales.createdAt));
+    .where(
+      and(
+        eq(sales.businessId, businessId),
+        or(
+          and(gte(sales.createdAt, from), lte(sales.createdAt, to)),
+          and(isNotNull(sales.paidAt), gte(sales.paidAt, from), lte(sales.paidAt, to)),
+        ),
+      ),
+    );
+  // Same rule as the CSV export: a sale counts on the business date it was paid, else created.
+  const settled = (s: Sale) => s.paidAt ?? s.createdAt;
   const daySales = saleRows
-    .filter((s) => businessDate(s.createdAt, tz) === date)
+    .filter((s) => businessDate(settled(s), tz) === date)
+    .sort((a, b) => settled(a).getTime() - settled(b).getTime())
     .map(({ qrPng, ...rest }) => {
       void qrPng; // the QR image is large and only the sell screen needs it
       return rest;
