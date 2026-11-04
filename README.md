@@ -22,7 +22,7 @@ Sandbox buyer login: `sb-fdfde53702808@personal.example.com`, password: see "San
    - The tortillas bill is **held**: it looks like a bill paid two days ago. The decision card shows both bills.
 7. Tap **Mark as already paid** on the held bill (nothing is sent), then **Run close again**. Nothing is paid twice.
 
-Payouts settle in about 18 seconds in the sandbox. You can watch Maria's balance change at [sandbox.paypal.com](https://www.sandbox.paypal.com) using the accounts below.
+Payouts settle in about 18 seconds in the sandbox. The Close screen shows the payout as Sending, then Paid, as PayPal reports it.
 
 ## Run locally in 15 minutes
 
@@ -156,7 +156,7 @@ Run from `stall/`.
 | `npm run e2e` | Playwright smoke: PIN, type an order, Charge, QR visible, total `$9.74`. Fully offline (`PAYPAL_MOCK=1`, `PARSE_MOCK=1`, in-memory database); run `npx playwright install chromium` once first. The mocks are ignored when `NODE_ENV=production`. |
 | `npm run eval:parse` | Parser accuracy on the transcripts in `stall/evals/`, three languages. Needs `ANTHROPIC_API_KEY`. |
 
-From the repository root, `node scripts/smoke-test.mjs` runs a live sandbox smoke test (token, create order, read, transactions, balances) using `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from the root `.env`.
+From the repository root, `node scripts/smoke-test.mjs` runs a live sandbox smoke test (token, invoice create, send and QR, transactions, balances) using `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` from the root `.env`.
 
 ## Sandbox accounts
 
@@ -165,11 +165,11 @@ For judges. All are PayPal **sandbox** accounts; no real money exists.
 | Role | Email | Password |
 |---|---|---|
 | Customer (buyer; use it to pay the QR) | `sb-fdfde53702808@personal.example.com` | `<SANDBOX_BUYER_PASSWORD>` |
-| Maria (helper; receives the $120 payout) | `sb-rukiy53702809@personal.example.com` | `<SANDBOX_MARIA_PASSWORD>` |
-| Tortillería Rosa (supplier) | `sb-g0any53702812@personal.example.com` | `<SANDBOX_ROSA_PASSWORD>` |
-| La Esquina (business; receives sales) | `sb-7dvsg53656715@business.example.com` | `<SANDBOX_BUSINESS_PASSWORD>` |
+| Maria (helper; receives the $120 payout) | `sb-rukiy53702809@personal.example.com` | not needed for judging |
+| Tortillería Rosa (supplier) | `sb-g0any53702812@personal.example.com` | not needed for judging |
+| La Esquina (business; receives sales) | `sb-7dvsg53656715@business.example.com` | not needed for judging |
 
-Sign in at [sandbox.paypal.com](https://www.sandbox.paypal.com) to see balances move. The hosted demo's owner PIN is `1234`.
+Only the customer account is needed: use it on the PayPal page that the QR or pay link opens. The Close screen shows each payout's status as PayPal reports it, so no other login is required. To finish a sale without any PayPal login, tap **Paid in cash**. The hosted demo's owner PIN is `1234`.
 
 ## Repository layout
 
