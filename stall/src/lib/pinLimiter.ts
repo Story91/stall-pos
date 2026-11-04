@@ -1,5 +1,5 @@
-// In-memory brute-force guard for the owner PIN. One process (Render web service),
-// so module state is enough; a restart clears it, which only helps the owner.
+// In-memory brute-force guard for the owner PIN: in-memory, per instance (Vercel).
+// Each instance keeps its own counters; a cold start clears them, which only helps the owner.
 
 const WINDOW_MS = 10 * 60_000;
 const MAX_FAILURES = 5;

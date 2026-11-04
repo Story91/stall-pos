@@ -203,7 +203,7 @@ export function createCloseTools(state: CloseState) {
         "Pay one obligation the rules marked 'pay'. Fails for held or skipped items. Money moves immediately.",
       inputSchema: z.object({
         obligationId: z.string().describe("The id from the obligation list"),
-        rationale: z.string().min(1).describe("One short sentence, shown to the payee and the owner"),
+        rationale: z.string().min(1).describe("One short sentence, stored for the owner; the payee never sees it"),
       }),
       execute: (input) =>
         logged("pay_obligation", input, () => payObligation(state, input.obligationId, input.rationale)),

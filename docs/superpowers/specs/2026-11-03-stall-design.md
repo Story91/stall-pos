@@ -109,6 +109,7 @@ business · catalog_item (name, aliases, default_price, taxable, sightings) · s
 - Language picker, not auto-detect; Web Speech first (designer).
 - Single configurable tax rate, labeled demo (reviewer, accepted).
 - Open, author to decide: recording phone (Android vs iPhone); hosting budget (free: Neon + free Render + external ping, or ~$15 paid Render through Dec 15).
+- Hosting moved from Render to Vercel (Next.js app, Vercel Cron for the close ping) + Neon Postgres; in-memory state such as the PIN limiter is per instance (author, 2026-11-04).
 
 **Author must do in the PayPal dashboard before day 1:** sandbox Business account with country **United States**, REST app on that account, three US Personal accounts (customer, Maria, Rosa), Client ID/Secret into `.env`, webhook once the Render URL exists.
 
