@@ -52,6 +52,7 @@ afterAll(async () => {
 
 describe("settings routes", () => {
   it("require the owner cookie", async () => {
+    expect((await businessGet(req("GET", "/api/business", undefined, null))).status).toBe(401);
     expect((await payeesGet(req("GET", "/api/payees", undefined, null))).status).toBe(401);
     expect((await catalogGet(req("GET", "/api/catalog", undefined, null))).status).toBe(401);
     expect((await resetPost(req("POST", "/api/reset-demo", undefined, null))).status).toBe(401);
@@ -61,8 +62,13 @@ describe("settings routes", () => {
   });
 
   it("lists payees by name and the catalog", async () => {
-    const payees = (await (await payeesGet(req("GET", "/api/payees"))).json()) as { name: string }[];
+    const payees = (await (await payeesGet(req("GET", "/api/payees"))).json()) as {
+      name: string;
+      email: string;
+    }[];
     expect(payees.map((p) => p.name)).toEqual(["Maria", "Tortillería Rosa"]);
+    // Masked on the server: first letter and domain only.
+    expect(payees.map((p) => p.email)).toEqual(["m••••@stall.example", "r••••@stall.example"]);
     const catalog = (await (await catalogGet(req("GET", "/api/catalog"))).json()) as unknown[];
     expect(catalog.length).toBeGreaterThan(0);
   });
@@ -71,7 +77,7 @@ describe("settings routes", () => {
     const res = await businessPatch(req("PATCH", "/api/business", { name: "Taquería Sol", taxRate: 0.07 }));
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ name: "Taquería Sol", taxRate: 0.07 });
-    expect(await (await businessGet()).json()).toMatchObject({ name: "Taquería Sol", taxRate: 0.07 });
+    expect(await (await businessGet(req("GET", "/api/business"))).json()).toMatchObject({ name: "Taquería Sol", taxRate: 0.07 });
 
     expect((await businessPatch(req("PATCH", "/api/business", { taxRate: 0.5 }))).status).toBe(400);
     expect((await businessPatch(req("PATCH", "/api/business", {}))).status).toBe(400);
@@ -81,7 +87,7 @@ describe("settings routes", () => {
     const before = await db.select().from(shifts);
     const res = await resetPost(req("POST", "/api/reset-demo"));
     expect(await res.json()).toEqual({ ok: true });
-    expect(await (await businessGet()).json()).toMatchObject({ name: "La Esquina", taxRate: 0.0825 });
+    expect(await (await businessGet(req("GET", "/api/business"))).json()).toMatchObject({ name: "La Esquina", taxRate: 0.0825 });
     expect((await db.select().from(shifts)).length).toBe(before.length);
   });
 });

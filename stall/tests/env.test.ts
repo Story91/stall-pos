@@ -62,3 +62,12 @@ describe("env", () => {
     }
   });
 });
+
+describe("OWNER_PIN", () => {
+  it("must be 4 to 6 digits, which is what the keypad can type", () => {
+    for (const pin of ["1234", "123456"]) expect(loadEnv({ ...validSample, OWNER_PIN: pin }).OWNER_PIN).toBe(pin);
+    for (const pin of ["123", "1234567", "12a4", "pass"]) {
+      expect(() => loadEnv({ ...validSample, OWNER_PIN: pin })).toThrow(/OWNER_PIN/);
+    }
+  });
+});

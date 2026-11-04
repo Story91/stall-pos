@@ -26,8 +26,10 @@ export function proxy(request: NextRequest): Response {
 }
 
 export const config = {
-  // Everything except build assets and the files a browser fetches before any login.
+  // Everything except build assets and the public files a browser fetches before any login.
+  // API paths are always matched, even ones ending in .txt or .png. "[.]" rather than "\.":
+  // Next re-parses the source, and an escaped dot came out as a wildcard.
   matcher: [
-    "/((?!_next/static|_next/image|favicon\.ico|manifest\.webmanifest|.*\.(?:png|svg|jpg|ico|webmanifest|txt)$).*)",
+    "/((?!_next/static|_next/image|favicon[.]ico$|manifest[.]webmanifest$|(?!api/).*[.](?:png|svg|jpg|ico|webmanifest|txt)$).*)",
   ],
 };

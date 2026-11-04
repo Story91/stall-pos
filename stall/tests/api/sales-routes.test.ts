@@ -30,16 +30,23 @@ import { POST as createRoute } from "@/app/api/sales/route";
 import { GET as statusRoute } from "@/app/api/sales/[id]/route";
 import { POST as cashRoute } from "@/app/api/sales/[id]/cash/route";
 import { POST as parseRoute } from "@/app/api/sales/parse/route";
+import { ownerCookieValue } from "@/lib/auth";
 
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 
-function post(url: string, body: unknown): Request {
+// The sales routes require the owner cookie, like every other owner route.
+const owner = () => ({ Cookie: `stall_owner=${ownerCookieValue()}` });
+
+function post(url: string, body: unknown, signedIn = true): Request {
   return new Request(`http://localhost${url}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(signedIn ? owner() : {}) },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 }
+
+const get = (url: string, signedIn = true) =>
+  new Request(`http://localhost${url}`, { headers: signedIn ? owner() : {} });
 
 const sale = (draftId: string) => ({
   draftId,
@@ -60,7 +67,22 @@ describe("sell API routes", () => {
     holder.db = test.db;
     close = test.close;
     await seed(test.db);
+    vi.stubEnv("PAYPAL_CLIENT_ID", "test-client-id");
+    vi.stubEnv("PAYPAL_CLIENT_SECRET", "test-client-secret");
+    vi.stubEnv("PAYPAL_WEBHOOK_ID", "test-webhook-id");
+    vi.stubEnv("DATABASE_URL", "postgres://user:pass@localhost:5432/stall");
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test");
+    vi.stubEnv("OWNER_PIN", "1234");
+    vi.stubEnv("CLOSE_TRIGGER_KEY", "close-key-for-tests");
   }, 60_000);
+
+  it("rejects every sales route without the owner cookie", async () => {
+    expect((await createRoute(post("/api/sales", sale("anon"), false))).status).toBe(401);
+    expect((await statusRoute(get("/api/sales/x", false), ctx("x"))).status).toBe(401);
+    expect((await cashRoute(post("/x", {}, false), ctx("x"))).status).toBe(401);
+    expect((await parseRoute(post("/api/sales/parse", {}, false))).status).toBe(401);
+    expect(paypal.createAndSendInvoice).not.toHaveBeenCalled();
+  });
 
   afterAll(async () => {
     await close();
@@ -95,7 +117,7 @@ describe("sell API routes", () => {
     expect(paypal.createAndSendInvoice).toHaveBeenCalledTimes(1);
 
     const status = await statusRoute(
-      new Request("http://localhost/api/sales/x"),
+      get("/api/sales/x"),
       ctx(charge.saleId),
     );
     expect(await status.json()).toEqual({ status: "awaiting", totalCents: 1490 });
@@ -116,7 +138,7 @@ describe("sell API routes", () => {
   });
 
   it("returns 404 for an unknown or malformed sale id", async () => {
-    const req = new Request("http://localhost/api/sales/x");
+    const req = get("/api/sales/x");
     expect((await statusRoute(req, ctx("00000000-0000-0000-0000-000000000000"))).status).toBe(404);
     expect((await statusRoute(req, ctx("junk"))).status).toBe(404);
     expect((await cashRoute(post("/x", {}), ctx("junk"))).status).toBe(404);

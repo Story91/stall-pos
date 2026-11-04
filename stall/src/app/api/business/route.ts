@@ -7,8 +7,13 @@ import { businessView, updateBusiness } from "@/lib/settings";
 export const dynamic = "force-dynamic";
 
 /** What the screens need: name and tax rate for previews, and today's business date. */
-export async function GET(): Promise<Response> {
-  return Response.json(await businessView(db));
+export async function GET(request: Request): Promise<Response> {
+  try {
+    requireOwner(request);
+    return Response.json(await businessView(db));
+  } catch (error) {
+    return toResponse(error);
+  }
 }
 
 /** Settings: rename the business or change the tax rate (a fraction, 0.0825 = 8.25%). */

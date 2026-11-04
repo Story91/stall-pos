@@ -8,7 +8,8 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().min(1),
   AI_MODEL: z.string().min(1).default("claude-sonnet-5-5"),
-  OWNER_PIN: z.string().min(1),
+  // The keypad on /pin types digits only, 4 to 6 of them.
+  OWNER_PIN: z.string().regex(/^[0-9]{4,6}$/, "Expected 4 to 6 digits"),
   CLOSE_TRIGGER_KEY: z.string().min(1),
   BUSINESS_TZ: z.string().min(1).default("America/Chicago"),
   APP_URL: z.string().min(1).default("http://localhost:3000"),

@@ -1,13 +1,15 @@
 import { db } from "@/db";
+import { requireOwner } from "@/lib/auth";
 import { recordCashPayment } from "@/lib/paypal/invoices";
 import { payCash, toResponse } from "@/lib/salesApi";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const { id } = await params;
   try {
+    requireOwner(request);
+    const { id } = await params;
     const result = await payCash(db, { recordCashPayment }, id);
     switch (result.kind) {
       case "paid":

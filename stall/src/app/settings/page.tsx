@@ -5,7 +5,7 @@ import { ResetDemo } from "@/components/settings/ResetDemo";
 import { ErrorBox, Screen, ScreenHeader, SectionTitle } from "@/components/ui";
 import { useSettings } from "@/hooks/useSettings";
 import type { CatalogRow, PayeeRow } from "@/lib/owner/types";
-import { formatCents, maskEmail } from "@/lib/sell/format";
+import { formatCents } from "@/lib/sell/format";
 
 const th = "border-b-2 border-ink px-2 py-2 text-left text-base font-semibold whitespace-nowrap";
 const td = "border-b border-rule px-2 py-3 align-top text-lg";
@@ -112,7 +112,7 @@ function PayeesTable({ payees }: { payees: PayeeRow[] }) {
               </td>
               <td className={`${td} money text-right`}>{formatCents(p.maxPerDayCents)}</td>
               <td className={td}>{p.autoPay ? "Yes" : "Asks you"}</td>
-              <td className={`${td} whitespace-nowrap text-graphite`}>{maskEmail(p.email)}</td>
+              <td className={`${td} whitespace-nowrap text-graphite`}>{p.email}</td>
             </tr>
           ))}
         </tbody>

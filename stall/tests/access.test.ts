@@ -54,4 +54,15 @@ describe("safeNext", () => {
     expect(safeNext(`/${String.fromCharCode(92)}evil.example`)).toBe("/sell");
     expect(safeNext("/pin")).toBe("/sell");
   });
+
+  it("rejects control characters browsers would strip into a protocol-relative URL", async () => {
+    const { safeNext } = await import("@/lib/access");
+    // What /pin reads from ?next=/%09/evil.example after URL decoding.
+    expect(safeNext(decodeURIComponent("/%09/evil.example"))).toBe("/sell");
+    expect(safeNext("/\n/evil.example")).toBe("/sell");
+    expect(safeNext("/day\u007f")).toBe("/sell");
+    expect(safeNext("//evil")).toBe("/sell");
+    expect(safeNext("https://evil")).toBe("/sell");
+    expect(safeNext("/close")).toBe("/close");
+  });
 });

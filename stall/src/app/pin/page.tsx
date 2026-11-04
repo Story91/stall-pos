@@ -10,8 +10,22 @@ const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 export default function PinPage() {
   const [digits, setDigits] = useState("");
-  const [state, setState] = useState<"idle" | "checking" | "wrong" | "offline">("idle");
+  const [state, setState] = useState<"idle" | "checking" | "wrong" | "offline" | "locked">("idle");
+  const [lockedFor, setLockedFor] = useState(0);
+  // The configured PIN length (4 to 6): the keypad checks as soon as that many digits are in.
+  const [length, setLength] = useState<number | null>(null);
   const checking = useRef(false);
+
+  useEffect(() => {
+    void fetch("/api/pin")
+      .then((r) => (r.ok ? (r.json() as Promise<{ length?: unknown }>) : null))
+      .then((body) => {
+        if (typeof body?.length === "number") setLength(body.length);
+      })
+      .catch(() => {
+        // Unknown length: Enter or Unlock still submits.
+      });
+  }, []);
 
   const submit = useCallback(async (pin: string) => {
     if (checking.current || pin.length < MIN) return;
@@ -35,6 +49,12 @@ export default function PinPage() {
       return;
     }
     setDigits("");
+    if (response?.status === 429) {
+      const body = (await response.json().catch(() => ({}))) as { retryAfterSeconds?: number };
+      setLockedFor(body.retryAfterSeconds ?? 30);
+      setState("locked");
+      return;
+    }
     setState(response ? "wrong" : "offline");
   }, []);
 
@@ -46,10 +66,9 @@ export default function PinPage() {
       if (digits.length >= MAX) return;
       const next = digits + key;
       setDigits(next);
-      // Four digits is the usual PIN: check it without waiting for Unlock.
-      if (next.length === MIN) void submit(next);
+      if (next.length === length) void submit(next);
     },
-    [submit, digits],
+    [submit, digits, length],
   );
 
   useEffect(() => {
@@ -71,7 +90,7 @@ export default function PinPage() {
 
       <div className="flex flex-col items-center gap-3">
         <div aria-hidden className="flex gap-3">
-          {Array.from({ length: Math.max(MIN, digits.length) }, (_, i) => (
+          {Array.from({ length: Math.max(length ?? MIN, digits.length) }, (_, i) => (
             <span
               key={i}
               className={`size-5 rounded-full border-[3px] border-ink ${i < digits.length ? "bg-ink" : ""}`}
@@ -86,6 +105,7 @@ export default function PinPage() {
           )}
           {state === "wrong" && "Wrong PIN"}
           {state === "offline" && "No connection. Try again."}
+          {state === "locked" && `Too many tries. Wait ${lockedFor} seconds.`}
           {state === "idle" && <span className="sr-only">{digits.length} digits entered</span>}
         </p>
       </div>
