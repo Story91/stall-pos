@@ -163,6 +163,8 @@ export async function generateQr(
     body: { width: 400, height: 400, action: "pay" },
     requestId,
     fetchImpl: rawBodyFetch,
+    // The endpoint answers multipart/form-data and 406s on Accept: application/json.
+    accept: "*/*",
   });
   if (typeof res !== "string") {
     throw new Error("PayPal QR code response was not a string");

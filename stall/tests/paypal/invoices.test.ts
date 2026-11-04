@@ -193,6 +193,7 @@ describe("generateQr", () => {
       body: { width: 400, height: 400, action: "pay" },
       requestId: "qr-req-1",
       fetchImpl: expect.any(Function),
+      accept: "*/*",
     });
   });
 

@@ -109,6 +109,8 @@ export async function paypalFetch<T>(opts: {
   path: string;
   body?: unknown;
   requestId?: string;
+  /** Accept header; defaults to application/json. */
+  accept?: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
 }): Promise<T> {
@@ -118,7 +120,7 @@ export async function paypalFetch<T>(opts: {
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
-    Accept: "application/json",
+    Accept: opts.accept ?? "application/json",
   };
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   if (opts.requestId) headers["PayPal-Request-Id"] = opts.requestId;

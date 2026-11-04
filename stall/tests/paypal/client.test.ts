@@ -304,3 +304,20 @@ describe("money helpers", () => {
     expect(() => toMoney(18.5)).toThrow();
   });
 });
+
+describe("paypalFetch Accept header", () => {
+  const headerOf = (fetchImpl: ReturnType<typeof vi.fn>) =>
+    (calls(fetchImpl)[1]![1].headers as Record<string, string>).Accept;
+
+  it("sends application/json by default and the given value when accept is set", async () => {
+    resetTokenCache();
+    const a = vi.fn().mockResolvedValueOnce(tokenResponse("t", 3600)).mockResolvedValueOnce(json({}));
+    await paypalFetch({ method: "GET", path: "/x", fetchImpl: a as unknown as typeof fetch });
+    expect(headerOf(a)).toBe("application/json");
+
+    resetTokenCache();
+    const b = vi.fn().mockResolvedValueOnce(tokenResponse("t", 3600)).mockResolvedValueOnce(json({}));
+    await paypalFetch({ method: "GET", path: "/x", accept: "*/*", fetchImpl: b as unknown as typeof fetch });
+    expect(headerOf(b)).toBe("*/*");
+  });
+});
