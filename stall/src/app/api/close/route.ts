@@ -27,7 +27,7 @@ export async function GET(request: Request): Promise<Response> {
     if (!hasCloseKey(request) && !hasBearerToken(request)) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
-    return Response.json(await closeDay(db, { createPayout }, undefined));
+    return Response.json(await closeDay(db, { createPayout }, {}));
   } catch (error) {
     return toResponse(error);
   }

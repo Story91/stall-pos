@@ -104,7 +104,10 @@ export async function closeDay(
 ) {
   const input = closeBody.parse(body);
   const business = await getBusiness(db);
-  const date = input.date ?? businessDate(deps.now ?? new Date(), business.tz);
+  const today = businessDate(deps.now ?? new Date(), business.tz);
+  const date = input.date ?? today;
+  // A future day would see none of today's payouts and so reset the per-day limits.
+  if (date > today) throw new ApiError(400, "future_date");
   return runClose(db, deps, { businessId: business.id, date });
 }
 

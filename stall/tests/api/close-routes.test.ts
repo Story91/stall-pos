@@ -323,6 +323,14 @@ describe("close, decisions and day", () => {
     expect((await closeGet(req("GET", "/api/close/2031-02-30"), dateCtx("2031-02-30"))).status).toBe(400);
     expect((await closePost(req("POST", "/api/close", { date: "soon" }))).status).toBe(400);
   });
+
+  it("refuses to close a future date, so it cannot reset the per-day caps", async () => {
+    paypal.createPayout.mockClear();
+    const res = await closePost(req("POST", "/api/close", { date: "2099-01-01" }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "future_date" });
+    expect(paypal.createPayout).not.toHaveBeenCalled();
+  });
 });
 
 describe("close with a bearer token", () => {
@@ -351,8 +359,8 @@ describe("close with a bearer token", () => {
     vi.stubEnv("CRON_SECRET", "cron-secret-for-tests");
     try {
       expect((await closePost(bearer(KEY))).status).toBe(401);
-      // Authorised: the day was already closed by the test above, so the close itself answers 400, not 401.
-      expect((await closeGetRoute(bearer("cron-secret-for-tests", "GET"))).status).not.toBe(401);
+      // Authorised: closing today again is a safe no-op.
+      expect((await closeGetRoute(bearer("cron-secret-for-tests", "GET"))).status).toBe(200);
     } finally {
       vi.stubEnv("CRON_SECRET", "");
     }
