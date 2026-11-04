@@ -31,3 +31,27 @@ export function parseDollars(text: string): number | null {
   const cents = whole * 100 + fraction;
   return cents > 0 && cents <= MAX_PRICE_CENTS ? cents : null;
 }
+
+/** "maria@stall.example" -> "m••••@stall.example": enough to recognise, not to copy. */
+export function maskEmail(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return "••••";
+  return `${email[0]}••••${email.slice(at)}`;
+}
+
+/** "3:05 PM" in the business timezone. */
+export function clockTime(iso: string, tz?: string): string {
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(
+    new Date(iso),
+  );
+}
+
+/** "2026-11-04" -> "Wednesday, November 4". */
+export function longDate(date: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+}

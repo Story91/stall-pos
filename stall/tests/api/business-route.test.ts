@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "@/db/test-db";
 import { seed } from "@/db/seed";
+import { businessDate } from "@/lib/dates";
 
 const holder = vi.hoisted(() => ({ db: undefined as unknown }));
 vi.mock("@/db", () => ({
@@ -23,7 +24,7 @@ describe("GET /api/business", () => {
     await close();
   });
 
-  it("returns the name, the tax rate as a number, and the currency", async () => {
+  it("returns the name, the tax rate as a number, the currency and today's business date", async () => {
     const response = await GET();
 
     expect(response.status).toBe(200);
@@ -31,6 +32,8 @@ describe("GET /api/business", () => {
       name: "La Esquina",
       taxRate: 0.0825,
       currency: "USD",
+      tz: "America/Chicago",
+      today: businessDate(new Date(), "America/Chicago"),
     });
   });
 });

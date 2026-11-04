@@ -35,3 +35,17 @@ describe("parseDollars cap", () => {
     expect(parseDollars("25000")).toBeNull();
   });
 });
+
+describe("owner display helpers", () => {
+  it("masks an email except its first letter and domain", async () => {
+    const { maskEmail } = await import("@/lib/sell/format");
+    expect(maskEmail("maria@stall.example")).toBe("m••••@stall.example");
+    expect(maskEmail("nope")).toBe("••••");
+  });
+
+  it("formats a business date and a time", async () => {
+    const { longDate, clockTime } = await import("@/lib/sell/format");
+    expect(longDate("2026-11-04")).toBe("Wednesday, November 4");
+    expect(clockTime("2026-11-04T21:05:00Z", "America/Chicago")).toBe("3:05 PM");
+  });
+});

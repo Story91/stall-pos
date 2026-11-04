@@ -102,7 +102,7 @@ describe("PayPal webhook route", () => {
 
   it("a new event for an already paid invoice does not re-mark but still emits", async () => {
     const later = event("WH-TEST-2", invoiceId);
-    later.resource.invoice.payments.transactions[0]!.date = "2026-11-08T09:00:00Z";
+    later.resource.invoice.payments.transactions[0]!.payment_date_time = "2026-11-08T09:00:00Z";
     const res = await POST(hook(later));
     expect(await res.json()).toEqual({ result: "processed" });
     expect(emitted).toHaveLength(2);

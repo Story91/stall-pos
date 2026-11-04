@@ -1,15 +1,22 @@
 import { db } from "@/db";
-import { getBusiness } from "@/lib/sales";
+import { requireOwner } from "@/lib/auth";
+import { readJson, toResponse } from "@/lib/salesApi";
+import { businessView, updateBusiness } from "@/lib/settings";
 
 // Read per request: never prerendered at build time (no database there).
 export const dynamic = "force-dynamic";
 
-/** What the sell screen needs to preview totals; the server still computes the charged amount. */
+/** What the screens need: name and tax rate for previews, and today's business date. */
 export async function GET(): Promise<Response> {
-  const business = await getBusiness(db);
-  return Response.json({
-    name: business.name,
-    taxRate: Number(business.taxRate),
-    currency: business.currency,
-  });
+  return Response.json(await businessView(db));
+}
+
+/** Settings: rename the business or change the tax rate (a fraction, 0.0825 = 8.25%). */
+export async function PATCH(request: Request): Promise<Response> {
+  try {
+    requireOwner(request);
+    return Response.json(await updateBusiness(db, await readJson(request)));
+  } catch (error) {
+    return toResponse(error);
+  }
 }

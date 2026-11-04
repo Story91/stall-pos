@@ -31,7 +31,14 @@ export type RuleOutcome = {
   verdict: "pay" | "hold" | "skip";
   reason: string;
   decisionType?: "over_limit" | "duplicate_bill" | "manual_payee" | "escalated";
-  evidence?: { paidBillId: string; payoutBatchId: string };
+  /** The earlier paid bill a duplicate matches, so the owner can compare the two side by side. */
+  evidence?: {
+    paidBillId: string;
+    payoutBatchId: string;
+    amountCents: number;
+    note: string;
+    date: string;
+  };
 };
 
 export type EvaluateInput = {
@@ -142,7 +149,13 @@ function evaluateOne(obligation: Obligation, input: EvaluateInput, state: RunSta
         `Possible duplicate: a ${fmt(duplicate.amountCents)} bill for ${name} was already paid on ${duplicate.date}.`,
         {
           decisionType: "duplicate_bill",
-          evidence: { paidBillId: duplicate.id, payoutBatchId: duplicate.payoutBatchId },
+          evidence: {
+            paidBillId: duplicate.id,
+            payoutBatchId: duplicate.payoutBatchId,
+            amountCents: duplicate.amountCents,
+            note: duplicate.note,
+            date: duplicate.date,
+          },
         },
       );
     }

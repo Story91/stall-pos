@@ -62,9 +62,24 @@ type InvoiceResource = {
   id?: string;
   invoice?: {
     id?: string;
-    payments?: { transactions?: { date?: string }[] };
+    // Real payloads carry payment_date_time (ISO) and payment_date (YYYY-MM-DD); there is no `date`.
+    payments?: { transactions?: { payment_date_time?: string; payment_date?: string }[] };
   };
 };
+
+/** When the customer paid: payment_date_time, else payment_date, else the event time, else now. */
+export function invoicePaidAt(
+  event: Pick<WebhookEvent, "resource" | "create_time">,
+  now = new Date(),
+): Date {
+  const transaction = ((event.resource ?? {}) as InvoiceResource).invoice?.payments?.transactions?.[0];
+  for (const value of [transaction?.payment_date_time, transaction?.payment_date, event.create_time]) {
+    if (!value) continue;
+    const when = new Date(value);
+    if (!Number.isNaN(when.getTime())) return when;
+  }
+  return now;
+}
 
 async function onInvoicePaid(db: Db, event: WebhookEvent) {
   const resource = (event.resource ?? {}) as InvoiceResource;
@@ -75,10 +90,7 @@ async function onInvoicePaid(db: Db, event: WebhookEvent) {
   const [sale] = await db.select().from(sales).where(eq(sales.invoiceId, invoiceId));
   if (!sale) return "unmatched" as const;
 
-  const when = new Date(
-    resource.invoice?.payments?.transactions?.[0]?.date ?? event.create_time ?? Date.now(),
-  );
-  await markPaid(db, sale.id, "paypal", Number.isNaN(when.getTime()) ? new Date() : when);
+  await markPaid(db, sale.id, "paypal", invoicePaidAt(event));
   // Emit even when already paid: the screen may have missed the first signal.
   emit({ type: "sale.paid", saleId: sale.id });
   return "processed" as const;

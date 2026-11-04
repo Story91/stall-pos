@@ -9,7 +9,20 @@
     "invoice": {
       "id": "INV2-REPLACED-IN-TEST",
       "status": "PAID",
-      "payments": { "transactions": [{ "date": "2026-11-07T18:00:00Z" }] }
+      "payments": {
+        "transactions": [
+          {
+            "type": "PAYPAL",
+            "payment_id": "8AB12345CD678901E",
+            "transaction_type": "SALE",
+            "payment_date": "2026-11-07",
+            "payment_date_time": "2026-11-07T18:00:00Z",
+            "method": "PAYPAL",
+            "amount": { "currency_code": "USD", "value": "12.99" },
+            "transaction_status": "SUCCESS"
+          }
+        ]
+      }
     }
   }
 }

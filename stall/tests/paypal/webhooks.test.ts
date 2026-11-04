@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { verifyWebhookSignature } from "@/lib/paypal/webhooks";
+import { invoicePaidAt, verifyWebhookSignature } from "@/lib/paypal/webhooks";
 
 const headers = () =>
   new Headers({
@@ -49,5 +49,31 @@ describe("verifyWebhookSignature", () => {
       await verifyWebhookSignature(h, body, { paypalFetch: fake, webhookId: "W" }),
     ).toBe(false);
     expect(fake).not.toHaveBeenCalled();
+  });
+});
+
+describe("invoicePaidAt", () => {
+  const withTx = (tx: Record<string, string>, create_time?: string) => ({
+    create_time,
+    resource: { invoice: { payments: { transactions: [tx] } } },
+  });
+  const now = new Date("2026-11-09T00:00:00Z");
+
+  it("prefers payment_date_time", () => {
+    const event = withTx(
+      { payment_date_time: "2026-11-07T18:00:00Z", payment_date: "2026-11-07" },
+      "2026-11-07T18:00:05Z",
+    );
+    expect(invoicePaidAt(event, now).toISOString()).toBe("2026-11-07T18:00:00.000Z");
+  });
+
+  it("falls back to payment_date, then the event time, then now", () => {
+    expect(invoicePaidAt(withTx({ payment_date: "2026-11-07" }), now).toISOString()).toBe(
+      "2026-11-07T00:00:00.000Z",
+    );
+    expect(invoicePaidAt(withTx({}, "2026-11-07T18:00:05Z"), now).toISOString()).toBe(
+      "2026-11-07T18:00:05.000Z",
+    );
+    expect(invoicePaidAt({ resource: {} }, now)).toBe(now);
   });
 });

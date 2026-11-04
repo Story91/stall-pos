@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { Nav } from "@/components/Nav";
 import { LanguagePicker } from "@/components/sell/LanguagePicker";
 import { LineItemsEditor } from "@/components/sell/LineItemsEditor";
 import { MicButton } from "@/components/sell/MicButton";
@@ -22,93 +23,96 @@ export default function SellPage() {
   const hasTicket = flow.rows.length > 0;
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-5 px-4 pb-8">
-      <header className="flex items-center justify-between gap-3 pt-3">
-        <div className="min-w-0">
-          <p className="money text-4xl font-extrabold leading-none">Stall</p>
-          <p className="truncate text-base text-graphite">{flow.business?.name ?? " "}</p>
-        </div>
-        <LanguagePicker
-          value={flow.language}
-          onChange={flow.setLanguage}
-          disabled={flow.mic === "listening"}
-        />
-      </header>
+    <>
+      <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-5 px-4 pb-28">
+        <header className="flex items-center justify-between gap-3 pt-3">
+          <div className="min-w-0">
+            <p className="money text-4xl font-extrabold leading-none">Stall</p>
+            <p className="truncate text-base text-graphite">{flow.business?.name ?? " "}</p>
+          </div>
+          <LanguagePicker
+            value={flow.language}
+            onChange={flow.setLanguage}
+            disabled={flow.mic === "listening"}
+          />
+        </header>
 
-      {flow.qr ? (
-        <PaymentStage
-          stage={flow.qr}
-          paidCash={flow.paidCash}
-          cashPending={flow.cashPending}
-          cashError={flow.cashError}
-          onCash={flow.payCash}
-          onPaid={flow.announcePaid}
-          onNewSale={flow.newSale}
-        />
-      ) : (
-        <>
-          {flow.parsing ? (
-            <TicketSkeleton transcript={flow.transcript} />
-          ) : hasTicket ? (
-            <>
-              {flow.transcript && (
-                <p className="text-lg text-graphite">
-                  Heard <q className="text-ink">{flow.transcript}</q>
+        {flow.qr ? (
+          <PaymentStage
+            stage={flow.qr}
+            paidCash={flow.paidCash}
+            cashPending={flow.cashPending}
+            cashError={flow.cashError}
+            onCash={flow.payCash}
+            onPaid={flow.announcePaid}
+            onNewSale={flow.newSale}
+          />
+        ) : (
+          <>
+            {flow.parsing ? (
+              <TicketSkeleton transcript={flow.transcript} />
+            ) : hasTicket ? (
+              <>
+                {flow.transcript && (
+                  <p className="text-lg text-graphite">
+                    Heard <q className="text-ink">{flow.transcript}</q>
+                  </p>
+                )}
+                <LineItemsEditor
+                  rows={flow.rows}
+                  onRowsChange={flow.setRows}
+                  taxRate={flow.business?.taxRate ?? null}
+                  tipPct={flow.tipPct}
+                  charging={flow.charging}
+                  onCharge={flow.charge}
+                  tip={
+                    <TipToggle
+                      value={flow.tipPct}
+                      onChange={flow.setTip}
+                      subtotalCents={subtotal(flow.rows)}
+                    />
+                  }
+                />
+              </>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6 text-center">
+                <MicButton
+                  state={flow.mic}
+                  supported={flow.micSupported}
+                  size="hero"
+                  idleLabel="Hold to talk"
+                  onPressStart={flow.pressStart}
+                  onPressEnd={flow.pressEnd}
+                />
+                <p className="max-w-xs text-xl text-graphite">
+                  Say the order, like <q className="text-ink">{EXAMPLES[flow.language]}</q>
                 </p>
-              )}
-              <LineItemsEditor
-                rows={flow.rows}
-                onRowsChange={flow.setRows}
-                taxRate={flow.business?.taxRate ?? null}
-                tipPct={flow.tipPct}
-                charging={flow.charging}
-                onCharge={flow.charge}
-                tip={
-                  <TipToggle
-                    value={flow.tipPct}
-                    onChange={flow.setTip}
-                    subtotalCents={subtotal(flow.rows)}
-                  />
-                }
-              />
-            </>
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-6 py-6 text-center">
+              </div>
+            )}
+
+            {flow.notice && <NoticeBox notice={flow.notice} onRetry={flow.retry} />}
+
+            {hasTicket && !flow.parsing && (
               <MicButton
                 state={flow.mic}
                 supported={flow.micSupported}
-                size="hero"
-                idleLabel="Hold to talk"
+                size="compact"
+                idleLabel="Say again: hold to talk"
                 onPressStart={flow.pressStart}
                 onPressEnd={flow.pressEnd}
               />
-              <p className="max-w-xs text-xl text-graphite">
-                Say the order, like <q className="text-ink">{EXAMPLES[flow.language]}</q>
-              </p>
-            </div>
-          )}
+            )}
 
-          {flow.notice && <NoticeBox notice={flow.notice} onRetry={flow.retry} />}
-
-          {hasTicket && !flow.parsing && (
-            <MicButton
-              state={flow.mic}
-              supported={flow.micSupported}
-              size="compact"
-              idleLabel="Say again: hold to talk"
-              onPressStart={flow.pressStart}
-              onPressEnd={flow.pressEnd}
+            <TypedOrder
+              disabled={flow.parsing || flow.charging}
+              placeholder={EXAMPLES[flow.language]}
+              onSubmit={flow.submitText}
             />
-          )}
-
-          <TypedOrder
-            disabled={flow.parsing || flow.charging}
-            placeholder={EXAMPLES[flow.language]}
-            onSubmit={flow.submitText}
-          />
-        </>
-      )}
-    </main>
+          </>
+        )}
+      </main>
+      <Nav />
+    </>
   );
 }
 

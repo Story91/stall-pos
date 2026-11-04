@@ -10,6 +10,8 @@ type Props = {
   supported: boolean;
   size: "hero" | "compact";
   idleLabel: string;
+  /** Shown while the transcript is being read; defaults to the sell wording. */
+  busyLabel?: string;
   onPressStart(): void;
   onPressEnd(): void;
 };
@@ -24,13 +26,22 @@ const LABELS: Record<Exclude<MicState, "idle">, string> = {
  * release on this button even if the thumb slides off it. Space or Enter
  * held down does the same from a keyboard.
  */
-export function MicButton({ state, supported, size, idleLabel, onPressStart, onPressEnd }: Props) {
+export function MicButton({
+  state,
+  supported,
+  size,
+  idleLabel,
+  busyLabel,
+  onPressStart,
+  onPressEnd,
+}: Props) {
   const listening = state === "listening";
   const disabled = !supported || state === "busy";
   // The accessible name stays put while the state changes; state is announced
   // through the live region below instead of by renaming the button.
   const name = supported ? idleLabel : "Voice is not available in this browser";
-  const label = !supported || state === "idle" ? name : LABELS[state];
+  const labels = busyLabel ? { ...LABELS, busy: busyLabel } : LABELS;
+  const label = !supported || state === "idle" ? name : labels[state];
 
   const down = (e: PointerEvent<HTMLButtonElement>) => {
     if (disabled || e.button !== 0) return;
@@ -96,7 +107,7 @@ export function MicButton({ state, supported, size, idleLabel, onPressStart, onP
         </span>
       </button>
       <span role="status" className="sr-only">
-        {state === "idle" ? "" : LABELS[state]}
+        {state === "idle" ? "" : labels[state]}
       </span>
     </>
   );
