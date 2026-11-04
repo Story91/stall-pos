@@ -5,6 +5,7 @@ import { ResetDemo } from "@/components/settings/ResetDemo";
 import { ErrorBox, Screen, ScreenHeader, SectionTitle } from "@/components/ui";
 import { useSettings } from "@/hooks/useSettings";
 import type { CatalogRow, PayeeRow } from "@/lib/owner/types";
+import { daysAgo } from "@/lib/dates";
 import { formatCents } from "@/lib/sell/format";
 
 const th = "border-b-2 border-ink px-2 py-2 text-left text-base font-semibold whitespace-nowrap";
@@ -49,11 +50,45 @@ export default function SettingsPage() {
         {s.payees && <PayeesTable payees={s.payees} />}
       </section>
 
+      <section aria-labelledby="export" className="flex flex-col gap-3">
+        <SectionTitle id="export">Export CSV</SectionTitle>
+        <p className="text-lg text-graphite">Paid sales, one row each, for your bookkeeper or spreadsheet.</p>
+        {s.business ? (
+          <ExportLinks today={s.business.today} />
+        ) : (
+          !s.loadError && <div aria-busy className="skeleton h-12 rounded-2xl bg-wash" />
+        )}
+      </section>
+
       <section aria-labelledby="reset" className="flex flex-col gap-3">
         <SectionTitle id="reset">Start the demo over</SectionTitle>
         <ResetDemo onReset={s.resetDemo} />
       </section>
     </Screen>
+  );
+}
+
+function ExportLinks({ today }: { today: string }) {
+  const monthStart = `${today.slice(0, 8)}01`;
+  const last30Start = daysAgo(today, 29);
+  const links = [
+    { label: "Month to date", from: monthStart, to: today },
+    { label: "Last 30 days", from: last30Start, to: today },
+  ];
+  return (
+    <ul className="flex flex-col gap-2">
+      {links.map((link) => (
+        <li key={link.label}>
+          <a
+            className="text-lg font-semibold underline"
+            href={`/api/export?from=${link.from}&to=${link.to}`}
+            download
+          >
+            {link.label} ({link.from} to {link.to})
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }
 
