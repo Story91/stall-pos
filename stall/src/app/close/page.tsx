@@ -73,7 +73,7 @@ export default function ClosePage() {
                 <DecisionCard
                   key={decision.id}
                   decision={decision}
-                  onAction={(action) => c.resolve(decision.id, action)}
+                  onAction={(action, expectedCents) => c.resolve(decision.id, action, expectedCents)}
                 />
               ))}
             </section>

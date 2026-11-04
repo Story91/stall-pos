@@ -91,7 +91,7 @@ describe("DecisionCard", () => {
     expect(onAction).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Yes, pay $240.00" }));
-    expect(onAction).toHaveBeenCalledWith("approve");
+    expect(onAction).toHaveBeenCalledWith("approve", 24000);
     await screen.findByRole("button", { name: "Approve" });
   });
 
@@ -120,6 +120,38 @@ describe("DecisionCard", () => {
     for (const name of ["Approve", "Decline", "Mark as already paid"]) {
       expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
     }
+  });
+
+  it("pays and shows the current amount from the API, not the one stored when the card was made", async () => {
+    const onAction = vi.fn().mockResolvedValue({ ok: true });
+    render(<DecisionCard decision={{ ...duplicate, currentAmountCents: 25000 }} onAction={onAction} />);
+    expect(screen.getByRole("article").querySelector("header")!.textContent).toContain("$250.00");
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, pay $250.00" }));
+    expect(onAction).toHaveBeenCalledWith("approve", 25000);
+    await screen.findByRole("button", { name: "Approve" });
+  });
+
+  it("offers no Approve on an escalated card whose PayPal batch is already used, only the hand-pay path", () => {
+    const escalated: DecisionRow = {
+      ...duplicate,
+      type: "escalated",
+      reason: "previous payout FAILED; check before paying again",
+      payoutBlocked: true,
+    };
+    render(<DecisionCard decision={escalated} onAction={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.getByText("Pay by hand in PayPal, then tap Mark as already paid")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Decline" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark as already paid" })).toBeTruthy();
+  });
+
+  it("keeps Approve on an escalated card when no payout was ever sent for it", () => {
+    render(
+      <DecisionCard decision={{ ...duplicate, type: "escalated", payoutBlocked: false }} onAction={vi.fn()} />,
+    );
+    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(screen.queryByText(/Pay by hand in PayPal/)).toBeNull();
   });
 
   it("shows the outcome instead of buttons once resolved", () => {

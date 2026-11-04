@@ -290,6 +290,19 @@ describe("close, decisions and day", () => {
     expect(paypal.createPayout).toHaveBeenCalledTimes(1);
   });
 
+  it("approve with a stale amount is 409 amount_changed and sends nothing", async () => {
+    const [decision] = await db.select().from(decisions).where(eq(decisions.status, "open"));
+    paypal.createPayout.mockClear();
+    const res = await decisionPost(
+      req("POST", `/api/decisions/${decision!.id}`, { action: "approve", expectedCents: 1 }),
+      idCtx(decision!.id),
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "amount_changed" });
+    expect(paypal.createPayout).not.toHaveBeenCalled();
+    expect((await db.select().from(decisions).where(eq(decisions.id, decision!.id)))[0]!.status).toBe("open");
+  });
+
   it("owner can resolve the held decision; a second action is 409", async () => {
     const [decision] = await db.select().from(decisions).where(eq(decisions.status, "open"));
     const bad = await decisionPost(req("POST", `/api/decisions/${decision!.id}`, { action: "nuke" }), idCtx(decision!.id));

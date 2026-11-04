@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, isNotNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Bill, Db, Decision, Payee, Payout, Sale, Shift } from "@/db";
 import { agentRuns, bills, decisions, payees, payouts, sales, shifts } from "@/db/schema";
@@ -118,8 +118,14 @@ export type DayView = {
   shifts: (Shift & { payee: Payee })[];
   bills: (Bill & { payee: Payee })[];
   payouts: PayoutWithPayee[];
-  decisions: Decision[];
+  decisions: DecisionView[];
 };
+
+/**
+ * A decision with what approving it would pay now (the bill's amount or the payee's
+ * daily rate) and whether a payout already used its PayPal batch id (then Approve cannot work).
+ */
+export type DecisionView = Decision & { currentAmountCents: number | null; payoutBlocked: boolean };
 
 /** Payouts tied to that day's shifts or bills, or created on that business day. */
 async function payoutsForDate(
@@ -161,12 +167,44 @@ async function queryPayoutsForDate(db: Db, businessId: string, date: string, tz:
     .map((r) => ({ ...r.payout, payeeName: r.payeeName, payeeRole: r.payeeRole }));
 }
 
-async function decisionsForDate(db: Db, businessId: string, date: string): Promise<Decision[]> {
-  return db
-    .select()
+async function decisionsForDate(db: Db, businessId: string, date: string): Promise<DecisionView[]> {
+  const rows = await db
+    .select({ decision: decisions, billCents: bills.amountCents, dailyRateCents: payees.dailyRateCents })
     .from(decisions)
+    .leftJoin(bills, eq(decisions.billId, bills.id))
+    .leftJoin(shifts, eq(decisions.shiftId, shifts.id))
+    .leftJoin(payees, eq(payees.id, shifts.payeeId))
     .where(and(eq(decisions.businessId, businessId), eq(decisions.date, date)))
     .orderBy(asc(decisions.createdAt));
+  const billIds = rows.flatMap((r) => (r.decision.billId ? [r.decision.billId] : []));
+  const shiftIds = rows.flatMap((r) => (r.decision.shiftId ? [r.decision.shiftId] : []));
+  const owned = [
+    ...(billIds.length > 0 ? [inArray(payouts.billId, billIds)] : []),
+    ...(shiftIds.length > 0 ? [inArray(payouts.shiftId, shiftIds)] : []),
+  ];
+  const payoutRows =
+    owned.length === 0
+      ? []
+      : await db
+          .select({ billId: payouts.billId, shiftId: payouts.shiftId, status: payouts.status })
+          .from(payouts)
+          .where(or(...owned));
+  const live = new Set<string>();
+  const used = new Set<string>();
+  for (const p of payoutRows) {
+    const id = p.billId ?? p.shiftId;
+    if (!id) continue;
+    used.add(id);
+    if (p.status === "PENDING" || p.status === "SUCCESS") live.add(id);
+  }
+  return rows.map(({ decision, billCents, dailyRateCents }) => {
+    const id = decision.billId ?? decision.shiftId ?? "";
+    return {
+      ...decision,
+      currentAmountCents: decision.billId ? billCents : dailyRateCents,
+      payoutBlocked: used.has(id) && !live.has(id),
+    };
+  });
 }
 
 export async function getDay(

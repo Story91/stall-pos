@@ -86,12 +86,15 @@ async function settle(
  * for the obligation (then no PayPal call), else calls PayPal and records the
  * PENDING payout row immediately, before the bill and decision are settled. If
  * settling fails, the row exists and a retry settles without paying again.
+ * With `expectedCents` (the amount the owner was shown), approve refuses if the
+ * amount owed has changed since.
  */
 export function resolveDecision(
   db: Db,
   deps: { createPayout: typeof createPayout },
   decisionId: string,
   action: DecisionAction,
+  expectedCents?: number,
 ): Promise<ResolveResult> {
   if (!UUID.test(decisionId)) return Promise.resolve({ ok: false, error: "not_found" });
   return serialize(decisionId, async (): Promise<ResolveResult> => {
@@ -115,6 +118,9 @@ export function resolveDecision(
         .innerJoin(payees, eq(bills.payeeId, payees.id))
         .where(eq(bills.id, decision.billId));
       if (!row) return { ok: false, error: "no_obligation" };
+      // Settled some other way since the card was drawn: never pay over it.
+      if (row.bill.status === "declined") return { ok: false, error: "already_resolved" };
+      if (row.bill.status === "paid") return { ok: false, error: "already_paid" };
       ({ kind, obligationId, date, cents, email } = {
         kind: "bill",
         obligationId: row.bill.id,
@@ -152,7 +158,12 @@ export function resolveDecision(
     // Money may already have moved (an earlier approval whose settle step failed, or the agent).
     if (await livePayout(db, batchId, billId, shiftId)) return finish();
 
+    // PayPal keeps a batch id for 30 days, so a FAILED/UNCLAIMED payout burns it: the owner pays by hand.
+    const [burnt] = await db.select({ id: payouts.id }).from(payouts).where(eq(payouts.batchId, batchId));
+    if (burnt) return { ok: false, error: "payout_exists_unrecorded" };
+
     if (cents === null || cents <= 0) return { ok: false, error: "no_amount" };
+    if (expectedCents !== undefined && expectedCents !== cents) return { ok: false, error: "amount_changed" };
     let paypalBatchId: string;
     try {
       paypalBatchId = (

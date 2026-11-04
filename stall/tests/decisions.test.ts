@@ -5,7 +5,7 @@ import { bills, decisions, payouts, shifts } from "@/db/schema";
 import { seed } from "@/db/seed";
 import { createTestDb } from "@/db/test-db";
 import { resolveDecision } from "@/lib/decisions";
-import { logBill, logShift } from "@/lib/obligations";
+import { getCloseView, logBill, logShift } from "@/lib/obligations";
 import { PayPalError } from "@/lib/paypal/client";
 import { PayoutDuplicateError } from "@/lib/paypal/payouts";
 import { getBusiness } from "@/lib/sales";
@@ -260,6 +260,90 @@ describe("resolveDecision approve", () => {
     expect(retry).toMatchObject({ ok: true, decision: { status: "approved" }, payout: { id: rows[0]!.id } });
     expect(createPayout).toHaveBeenCalledTimes(1);
     expect(await billStatus(bill.id)).toBe("paid");
+  });
+});
+
+describe("resolveDecision approve guards", () => {
+  it("refuses a bill that is already declined or paid, without calling PayPal", async () => {
+    const createPayout = okPayout();
+    const declined = await heldBill();
+    await db.update(bills).set({ status: "declined" }).where(eq(bills.id, declined.bill.id));
+    expect(await resolveDecision(db, { createPayout }, declined.decision.id, "approve", 90000)).toEqual({
+      ok: false,
+      error: "already_resolved",
+    });
+    const paid = await heldBill();
+    await db.update(bills).set({ status: "paid" }).where(eq(bills.id, paid.bill.id));
+    expect(await resolveDecision(db, { createPayout }, paid.decision.id, "approve", 90000)).toEqual({
+      ok: false,
+      error: "already_paid",
+    });
+    expect(createPayout).not.toHaveBeenCalled();
+    expect(await decisionStatus(declined.decision.id)).toBe("open");
+    expect(await decisionStatus(paid.decision.id)).toBe("open");
+  });
+
+  it("refuses with amount_changed when the amount differs from what the owner saw", async () => {
+    const createPayout = okPayout();
+    const { bill, decision } = await heldBill(90000);
+    expect(await resolveDecision(db, { createPayout }, decision.id, "approve", 80000)).toEqual({
+      ok: false,
+      error: "amount_changed",
+    });
+    expect(createPayout).not.toHaveBeenCalled();
+    expect(await billStatus(bill.id)).toBe("held");
+    const ok = await resolveDecision(db, { createPayout }, decision.id, "approve", 90000);
+    expect(ok.ok).toBe(true);
+    expect(createPayout).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call PayPal again when this obligation already has a payout that is not live", async () => {
+    const { bill, decision } = await heldBill();
+    await db.insert(payouts).values({
+      businessId,
+      billId: bill.id,
+      batchId: obligationBatchId(businessId, "bill", bill.id),
+      amountCents: 90000,
+      status: "FAILED",
+      rationale: "earlier",
+    });
+    const createPayout = okPayout();
+    const result = await resolveDecision(db, { createPayout }, decision.id, "approve", 90000);
+    expect(result).toEqual({ ok: false, error: "payout_exists_unrecorded" });
+    expect(createPayout).not.toHaveBeenCalled();
+    expect(await decisionStatus(decision.id)).toBe("open");
+  });
+});
+
+describe("decision view", () => {
+  it("carries the current amount and whether a payout already used this obligation's batch", async () => {
+    const plain = await heldBill(70000);
+    const blocked = await heldBill(60000);
+    await db.insert(payouts).values({
+      businessId,
+      billId: blocked.bill.id,
+      batchId: obligationBatchId(businessId, "bill", blocked.bill.id),
+      amountCents: 60000,
+      status: "FAILED",
+      rationale: "earlier",
+    });
+    await db.update(bills).set({ amountCents: 71000 }).where(eq(bills.id, plain.bill.id));
+    const shift = await logShift(db, businessId, mariaId, plain.bill.date);
+    await db.insert(decisions).values({
+      businessId,
+      date: plain.bill.date,
+      type: "escalated",
+      reason: "r",
+      source: {},
+      shiftId: shift.id,
+    });
+
+    const view = await getCloseView(db, businessId, plain.bill.date, "UTC");
+    const byObligation = new Map(view.decisions.map((d) => [d.billId ?? d.shiftId, d]));
+    expect(byObligation.get(plain.bill.id)).toMatchObject({ currentAmountCents: 71000, payoutBlocked: false });
+    expect(byObligation.get(shift.id)).toMatchObject({ currentAmountCents: 12000, payoutBlocked: false });
+    const other = await getCloseView(db, businessId, blocked.bill.date, "UTC");
+    expect(other.decisions[0]).toMatchObject({ currentAmountCents: 60000, payoutBlocked: true });
   });
 });
 

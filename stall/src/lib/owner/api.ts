@@ -48,6 +48,13 @@ export function failureText(failure: { status: number; code: string }): string {
   if (failure.code === "already_paid") return "This was already paid, so nothing more was sent.";
   if (failure.code === "has_payout") return "Already paid";
   if (failure.code === "has_decision") return "Waiting on your decision on Close";
+  if (failure.code === "payout_exists_unrecorded") {
+    return "PayPal already has a payout for this item that we could not record. Check PayPal, then mark it as already paid.";
+  }
+  if (failure.code === "no_amount") return "This payee has no daily rate set.";
+  if (failure.code === "amount_changed") {
+    return "The amount changed since this card was shown. Check the new amount and approve again.";
+  }
   if (failure.code === "parse_failed") return "Couldn't read that. Try again or fill in the form.";
   if (failure.status === 400) return "Something in the form is not right. Check it and try again.";
   return "Something went wrong on the server. Try again.";

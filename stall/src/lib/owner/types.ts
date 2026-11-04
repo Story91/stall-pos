@@ -111,6 +111,10 @@ export type DecisionRow = {
   };
   shiftId: string | null;
   billId: string | null;
+  /** What approving would pay now: the bill's amount or the payee's daily rate. */
+  currentAmountCents?: number | null;
+  /** A payout already used this item's PayPal batch id, so Approve cannot send it again. */
+  payoutBlocked?: boolean;
 };
 
 export type DayView = {

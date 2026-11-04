@@ -82,8 +82,12 @@ export function useClose() {
     setRunning(false);
   };
 
-  const resolve = async (decisionId: string, action: DecisionAction): Promise<ActionOutcome> => {
-    const result = await ownerCall(`/api/decisions/${decisionId}`, send("POST", { action }));
+  const resolve = async (
+    decisionId: string,
+    action: DecisionAction,
+    expectedCents?: number,
+  ): Promise<ActionOutcome> => {
+    const result = await ownerCall(`/api/decisions/${decisionId}`, send("POST", { action, expectedCents }));
     if (date) await refresh(date);
     if (result.ok) return { ok: true };
     return { ok: false, message: failureText(result), conflict: result.status === 409 };

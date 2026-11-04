@@ -33,7 +33,11 @@ export const billBody = z.object({
   photoUrl: z.string().url().max(2048).optional(),
 });
 export const closeBody = z.object({ date: isoDate.optional() });
-export const decisionBody = z.object({ action: z.enum(["approve", "decline", "mark_paid"]) });
+export const decisionBody = z.object({
+  action: z.enum(["approve", "decline", "mark_paid"]),
+  /** The amount the owner was shown; approve refuses if what is owed has changed since. */
+  expectedCents: z.number().int().positive().optional(),
+});
 
 export function parseDate(value: string): string {
   return isoDate.parse(value);
@@ -134,8 +138,8 @@ export async function decide(
   decisionId: string,
   body: unknown,
 ) {
-  const { action } = decisionBody.parse(body);
-  const result = await resolveDecision(db, deps, decisionId, action as DecisionAction);
+  const { action, expectedCents } = decisionBody.parse(body);
+  const result = await resolveDecision(db, deps, decisionId, action as DecisionAction, expectedCents);
   if (!result.ok) {
     throw new ApiError(
       FAILURE_STATUS[result.error] ?? 409,

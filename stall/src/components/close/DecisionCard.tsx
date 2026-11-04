@@ -10,7 +10,8 @@ export type ActionOutcome = { ok: true } | { ok: false; message: string; conflic
 
 type Props = {
   decision: DecisionRow;
-  onAction(action: DecisionAction): Promise<ActionOutcome>;
+  /** `expectedCents` (approve only) is the amount on the card; the server refuses if it has changed. */
+  onAction(action: DecisionAction, expectedCents?: number): Promise<ActionOutcome>;
 };
 
 const TYPE_LABEL: Record<DecisionType, string> = {
@@ -53,7 +54,11 @@ export function DecisionCard({ decision, onAction }: Props) {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<{ message: string; locked: boolean } | null>(null);
   const obligation = decision.source.obligation;
-  const amount = obligation ? formatCents(obligation.amountCents) : null;
+  // The API's current amount wins over the snapshot taken when the card was made.
+  const cents = decision.currentAmountCents ?? obligation?.amountCents ?? null;
+  const amount = cents === null ? null : formatCents(cents);
+  // An escalated item whose PayPal batch id is already used cannot be sent again from here.
+  const handPayOnly = decision.type === "escalated" && decision.payoutBlocked === true;
   const who = obligation?.payee.name ?? "this payee";
   const headline = decision.source.rulesReason ?? decision.reason;
   const rationale = extraRationale(headline, decision.source.agentRationale);
@@ -74,7 +79,8 @@ export function DecisionCard({ decision, onAction }: Props) {
     setConfirming(null);
     setWorking(true);
     setError(null);
-    const outcome = await onAction(action);
+    const outcome =
+      action === "approve" && cents !== null ? await onAction(action, cents) : await onAction(action);
     setWorking(false);
     if (!outcome.ok) setError({ message: outcome.message, locked: outcome.conflict });
   };
@@ -153,8 +159,13 @@ export function DecisionCard({ decision, onAction }: Props) {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            {(["approve", "decline"] as const).map((action) => (
+          {handPayOnly && (
+            <p className="rounded-xl bg-marigold-soft p-3 text-lg font-semibold">
+              Pay by hand in PayPal, then tap Mark as already paid
+            </p>
+          )}
+          <div className={`grid gap-2 ${handPayOnly ? "grid-cols-1" : "grid-cols-2"}`}>
+            {(handPayOnly ? (["decline"] as const) : (["approve", "decline"] as const)).map((action) => (
               <button
                 key={action}
                 type="button"
