@@ -4,6 +4,8 @@ import type { Db } from "@/db";
 import { payouts } from "@/db/schema";
 import { seed } from "@/db/seed";
 import { createTestDb } from "@/db/test-db";
+import { applyPayoutStatus } from "@/lib/paypal/payoutStatus";
+import { subscribe } from "@/lib/events";
 import { getDay } from "@/lib/obligations";
 import { resetPayoutReconcileThrottle } from "@/lib/payoutReconcile";
 import { getBusiness } from "@/lib/sales";
@@ -47,7 +49,7 @@ describe("payout reconciliation without webhooks", () => {
     const p = await newPayout("PENDING");
     const lookup = vi.fn().mockResolvedValue(batch("SUCCESS"));
     const day = await getDay(db, businessId, DATE, "UTC", { getPayoutBatch: lookup });
-    expect(lookup).toHaveBeenCalledWith(p.paypalBatchId);
+    expect(lookup).toHaveBeenCalledWith(p.paypalBatchId, { timeoutMs: 5000 });
     expect(await statusOf(p.id)).toMatchObject({ status: "SUCCESS", itemId: "ITEM-1" });
     expect(day.payouts.find((x) => x.id === p.id)?.status).toBe("SUCCESS");
   });
@@ -97,8 +99,20 @@ describe("payout reconciliation without webhooks", () => {
     const none = await newPayout("PENDING", null);
     const lookup = vi.fn().mockResolvedValue(batch("FAILED"));
     await getDay(db, businessId, DATE, "UTC", { getPayoutBatch: lookup });
-    expect(lookup).not.toHaveBeenCalledWith(done.paypalBatchId);
+    expect(lookup.mock.calls.map(([id]) => id)).not.toContain(done.paypalBatchId);
     expect((await statusOf(done.id)).status).toBe("SUCCESS");
     expect((await statusOf(none.id)).status).toBe("PENDING");
+  });
+
+  it("does not let a stale PENDING snapshot overwrite a newer SUCCESS", async () => {
+    const p = await newPayout("PENDING");
+    await db.update(payouts).set({ status: "SUCCESS" }).where(eq(payouts.id, p.id));
+    const seen: unknown[] = [];
+    const off = subscribe((e) => seen.push(e));
+    const result = await applyPayoutStatus(db, { id: p.id, status: "PENDING" }, "UNCLAIMED", "ITEM-9");
+    off();
+    expect(result).toBe("ignored");
+    expect((await statusOf(p.id)).status).toBe("SUCCESS");
+    expect(seen).toHaveLength(0);
   });
 });

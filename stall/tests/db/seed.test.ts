@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { createTestDb } from "@/db/test-db";
 import { seed } from "@/db/seed";
@@ -24,6 +24,10 @@ describe("seed", () => {
     ({ db, close } = await createTestDb());
     result = await seed(db);
   }, 60_000);
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
 
   afterAll(async () => {
     await close();
@@ -166,6 +170,5 @@ describe("seed", () => {
       "maria@stall.example",
       "rosa@stall.example",
     ]);
-    vi.unstubAllEnvs();
   });
 });

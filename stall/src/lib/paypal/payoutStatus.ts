@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
 import type { Db, Payout } from "@/db";
 import { payouts } from "@/db/schema";
 import { emit } from "@/lib/events";
@@ -15,13 +15,17 @@ export async function applyPayoutStatus(
   status: PayoutFinalStatus,
   itemId?: string,
 ): Promise<"processed" | "ignored"> {
-  if (status === "UNCLAIMED" && (payout.status === "SUCCESS" || payout.status === "FAILED")) {
-    return "ignored";
-  }
-  await db
+  // Guarded in SQL so a stale snapshot (a slow PayPal lookup racing a webhook) cannot undo a newer status.
+  const guard =
+    status === "UNCLAIMED"
+      ? and(eq(payouts.id, payout.id), eq(payouts.status, payout.status), notInArray(payouts.status, ["SUCCESS", "FAILED"]))
+      : and(eq(payouts.id, payout.id), eq(payouts.status, payout.status));
+  const updated = await db
     .update(payouts)
     .set(itemId ? { status, itemId } : { status })
-    .where(eq(payouts.id, payout.id));
+    .where(guard)
+    .returning({ id: payouts.id });
+  if (updated.length === 0) return "ignored";
   emit({ type: "payout.updated", payoutId: payout.id });
   return "processed";
 }

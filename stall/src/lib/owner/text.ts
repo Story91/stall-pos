@@ -8,11 +8,16 @@ export const normalize = (text: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** True when one text contains the other once normalized. */
+const MIN_CONTAINED_CHARS = 20;
+
+/** True when the texts match once normalized, or one contains the other (and is not trivially short). */
 export function nearDuplicate(a: string, b: string): boolean {
   const x = normalize(a);
   const y = normalize(b);
-  return x !== "" && y !== "" && (x.includes(y) || y.includes(x));
+  if (x === "" || y === "") return false;
+  if (x === y) return true;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length >= MIN_CONTAINED_CHARS && long.includes(short);
 }
 
 /** Minimal markdown to plain text: no bold markers, bullets as dots. */

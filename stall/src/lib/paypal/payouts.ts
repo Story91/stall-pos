@@ -58,11 +58,12 @@ export async function createPayout(input: {
 
 export async function getPayoutBatch(
   batchId: string,
+  opts: { timeoutMs?: number } = {},
 ): Promise<{ status: string; items: { itemId: string; status: string }[] }> {
   const body = await paypalFetch<{
     batch_header: { batch_status: string };
     items?: { payout_item_id: string; transaction_status: string }[];
-  }>({ method: "GET", path: `/v1/payments/payouts/${batchId}` });
+  }>({ method: "GET", path: `/v1/payments/payouts/${batchId}`, timeoutMs: opts.timeoutMs });
   return {
     status: body.batch_header.batch_status,
     items: (body.items ?? []).map((i) => ({

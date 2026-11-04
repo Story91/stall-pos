@@ -45,6 +45,11 @@ describe("ActionLog", () => {
     expect(line.textContent).toContain("• one bill held");
   });
 
+  it("keeps a short Agent said entry even though the note contains it", () => {
+    render(<ActionLog log={[paid, summary, said("ok")]} names={names} />);
+    expect(screen.getByText("Agent said")).toBeTruthy();
+  });
+
   it("keeps money-moving entries unchanged", () => {
     const held: LogEntry = {
       step: 4,

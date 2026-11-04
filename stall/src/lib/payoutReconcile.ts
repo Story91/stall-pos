@@ -7,6 +7,8 @@ import { applyPayoutStatus, mapItemStatus } from "@/lib/paypal/payoutStatus";
 // Polling fallback for when no PayPal webhook is registered: at most one batch
 // lookup per payout every PAYOUT_RECONCILE_INTERVAL_MS, until it is final.
 const PAYOUT_RECONCILE_INTERVAL_MS = 5000;
+// A slow PayPal must not hold the screen up: this path is best effort.
+const LOOKUP_TIMEOUT_MS = 5000;
 const lastChecked = new Map<string, number>();
 
 export function resetPayoutReconcileThrottle(): void {
@@ -27,28 +29,33 @@ export async function reconcilePayouts(
   const lookup = deps.getPayoutBatch ?? (isMockEnabled("PAYPAL_MOCK") ? undefined : getPayoutBatch);
   if (!lookup) return false;
   const nowMs = (deps.nowMs ?? Date.now)();
-  let changed = false;
-  for (const row of rows) {
+  const due = rows.filter((row) => {
     if (row.status !== "PENDING" || !row.paypalBatchId) {
       lastChecked.delete(row.id);
-      continue;
+      return false;
     }
     const last = lastChecked.get(row.id);
-    if (last !== undefined && nowMs - last < PAYOUT_RECONCILE_INTERVAL_MS) continue;
+    if (last !== undefined && nowMs - last < PAYOUT_RECONCILE_INTERVAL_MS) return false;
     lastChecked.set(row.id, nowMs);
-    try {
-      const batch = await lookup(row.paypalBatchId);
-      const item = batch.items[0];
-      const status = mapItemStatus(item?.status);
-      if (!status) continue;
-      await applyPayoutStatus(db, row, status, item?.itemId);
-      lastChecked.delete(row.id);
-      changed = true;
-    } catch (error) {
-      // Best effort: the stored status is still correct. Log ids and status only.
-      const reason = error instanceof PayPalError ? `status ${error.status}` : "error";
-      console.error(`stall: payout status check failed for payout ${row.id} (${reason})`);
-    }
-  }
-  return changed;
+    return true;
+  });
+  const results = await Promise.all(
+    due.map(async (row) => {
+      try {
+        const batch = await lookup(row.paypalBatchId!, { timeoutMs: LOOKUP_TIMEOUT_MS });
+        const item = batch.items[0];
+        const status = mapItemStatus(item?.status);
+        if (!status) return false;
+        const outcome = await applyPayoutStatus(db, row, status, item?.itemId);
+        lastChecked.delete(row.id);
+        return outcome === "processed";
+      } catch (error) {
+        // Best effort: the stored status is still correct. Log ids and status only.
+        const reason = error instanceof PayPalError ? `status ${error.status}` : "error";
+        console.error(`stall: payout status check failed for payout ${row.id} (${reason})`);
+        return false;
+      }
+    }),
+  );
+  return results.some(Boolean);
 }
