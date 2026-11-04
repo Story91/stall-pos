@@ -6,6 +6,7 @@ import { seed } from "@/db/seed";
 import { createTestDb } from "@/db/test-db";
 import { getDay, logBill, logShift, removeShift } from "@/lib/obligations";
 import { getBusiness } from "@/lib/sales";
+import { obligationBatchId } from "@/lib/close/batchId";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -75,7 +76,7 @@ describe("removeShift", () => {
     await db.insert(payouts).values({
       businessId,
       shiftId: shift.id,
-      batchId: `stall-${businessId}-shift-${shift.id}`,
+      batchId: obligationBatchId(businessId, "shift", shift.id),
       amountCents: 12000,
       rationale: "test",
     });

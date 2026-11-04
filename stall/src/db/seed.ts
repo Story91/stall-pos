@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { obligationBatchId } from "@/lib/close/batchId";
 import { businessDate, daysAgo } from "@/lib/dates";
 import { computeTotals, type Line } from "@/lib/money";
 import type { Db } from "./index";
@@ -103,7 +104,7 @@ export async function seed(
     await tx.insert(payouts).values({
       businessId,
       billId: paidBill!.id,
-      batchId: `stall-${businessId}-bill-${paidBill!.id}`,
+      batchId: obligationBatchId(businessId, "bill", paidBill!.id),
       amountCents: 24000,
       status: "SUCCESS",
       rationale: "Seed: paid tortilla delivery",

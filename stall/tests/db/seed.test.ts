@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import type { Db } from "@/db";
 import { businessDate } from "@/lib/dates";
+import { obligationBatchId } from "@/lib/close/batchId";
 
 describe("seed", () => {
   let db: Db;
@@ -100,7 +101,7 @@ describe("seed", () => {
     expect(payout).toMatchObject({
       status: "SUCCESS",
       amountCents: 24000,
-      batchId: `stall-${result.businessId}-bill-${paid.id}`,
+      batchId: obligationBatchId(result.businessId, "bill", paid.id),
     });
   });
 

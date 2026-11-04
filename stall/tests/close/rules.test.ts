@@ -64,7 +64,7 @@ const paidTortillas: PaidBill = {
   amountCents: 24000,
   note: "tortillas",
   date: "2026-11-02",
-  payoutBatchId: "stall-b1-bill-paid-1",
+  payoutBatchId: "st-b-a1b2c3d4e5f60718293a4b5c6",
 };
 
 function baseInput() {
@@ -90,7 +90,7 @@ describe("evaluateObligations", () => {
     expect(rosaOutcome?.decisionType).toBe("duplicate_bill");
     expect(rosaOutcome?.evidence).toEqual({
       paidBillId: "bill-paid-1",
-      payoutBatchId: "stall-b1-bill-paid-1",
+      payoutBatchId: "st-b-a1b2c3d4e5f60718293a4b5c6",
       amountCents: 24000,
       note: "tortillas",
       date: "2026-11-02",

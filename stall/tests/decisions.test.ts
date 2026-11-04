@@ -9,6 +9,7 @@ import { logBill, logShift } from "@/lib/obligations";
 import { PayPalError } from "@/lib/paypal/client";
 import { PayoutDuplicateError } from "@/lib/paypal/payouts";
 import { getBusiness } from "@/lib/sales";
+import { obligationBatchId } from "@/lib/close/batchId";
 
 type PayoutInput = { batchId: string; receiverEmail: string; cents: number; note: string };
 const okPayout = () =>
@@ -73,7 +74,7 @@ describe("resolveDecision approve", () => {
     const createPayout = okPayout();
     const result = await resolveDecision(db, { createPayout }, decision.id, "approve");
 
-    const batchId = `stall-${businessId}-bill-${bill.id}`;
+    const batchId = obligationBatchId(businessId, "bill", bill.id);
     expect(createPayout).toHaveBeenCalledTimes(1);
     expect(createPayout).toHaveBeenCalledWith({
       batchId,
@@ -111,7 +112,7 @@ describe("resolveDecision approve", () => {
     const createPayout = okPayout();
     const result = await resolveDecision(db, { createPayout }, decision!.id, "approve");
     expect(createPayout).toHaveBeenCalledWith({
-      batchId: `stall-${businessId}-shift-${shift.id}`,
+      batchId: obligationBatchId(businessId, "shift", shift.id),
       receiverEmail: "maria@stall.example",
       cents: 12000,
       note: "Stall: shift 2031-05-01",
@@ -159,7 +160,7 @@ describe("resolveDecision approve", () => {
 
   it("duplicate batch with a live payout row: approved, bill paid, no second row", async () => {
     const { bill, decision } = await heldBill();
-    const batchId = `stall-${businessId}-bill-${bill.id}`;
+    const batchId = obligationBatchId(businessId, "bill", bill.id);
     await db.insert(payouts).values({
       businessId,
       billId: bill.id,
@@ -186,7 +187,7 @@ describe("resolveDecision approve", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await resolveDecision(db, { createPayout }, decision.id, "approve");
     expect(spy).toHaveBeenCalledWith("payout unrecorded", {
-      batchId: `stall-${businessId}-bill-${bill.id}`,
+      batchId: obligationBatchId(businessId, "bill", bill.id),
     });
     spy.mockRestore();
     expect(result).toEqual({ ok: false, error: "payout_exists_unrecorded" });
@@ -199,7 +200,7 @@ describe("resolveDecision approve", () => {
     await db.insert(payouts).values({
       businessId,
       billId: bill.id,
-      batchId: `stall-${businessId}-bill-${bill.id}`,
+      batchId: obligationBatchId(businessId, "bill", bill.id),
       amountCents: 90000,
       status: "FAILED",
       rationale: "earlier",
@@ -220,7 +221,7 @@ describe("resolveDecision approve", () => {
     await db.insert(payouts).values({
       businessId,
       billId: bill.id,
-      batchId: `stall-${businessId}-bill-${bill.id}`,
+      batchId: obligationBatchId(businessId, "bill", bill.id),
       paypalBatchId: "PB-LIVE",
       amountCents: 90000,
       status: "PENDING",
@@ -297,7 +298,7 @@ describe("resolveDecision decline and mark_paid", () => {
     await db.insert(payouts).values({
       businessId,
       billId: live.bill.id,
-      batchId: `stall-${businessId}-bill-${live.bill.id}`,
+      batchId: obligationBatchId(businessId, "bill", live.bill.id),
       amountCents: 90000,
       status: "SUCCESS",
       rationale: "earlier",

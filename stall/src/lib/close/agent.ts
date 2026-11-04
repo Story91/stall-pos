@@ -5,6 +5,7 @@ import type { Db } from "@/db";
 import { bills, decisions, payouts } from "@/db/schema";
 import type { createPayout as CreatePayout } from "@/lib/paypal/payouts";
 import { PayoutDuplicateError } from "@/lib/paypal/payouts";
+import { obligationBatchId } from "./batchId";
 import type { RuleOutcome } from "./rules";
 
 export type LogEntry = {
@@ -50,10 +51,7 @@ function cleanLabel(text: string, max = MAX_LABEL): string {
   return text.replace(/\s+/g, " ").trim().slice(0, max);
 }
 
-/** The one payout batch id scheme, shared by the close agent and owner approvals. */
-export function obligationBatchId(businessId: string, kind: "shift" | "bill", id: string): string {
-  return `stall-${businessId}-${kind}-${id}`;
-}
+export { obligationBatchId };
 
 export function batchIdFor(businessId: string, outcome: RuleOutcome): string {
   return obligationBatchId(businessId, outcome.obligation.kind, outcome.obligation.id);

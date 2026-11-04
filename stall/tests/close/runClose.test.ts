@@ -9,6 +9,7 @@ import { buildClosePrompt, payObligation } from "@/lib/close/agent";
 import { DEFAULT_BUSINESS_DAILY_CAP_CENTS, runClose } from "@/lib/close/runClose";
 import { businessDate } from "@/lib/dates";
 import { PayoutDuplicateError } from "@/lib/paypal/payouts";
+import { obligationBatchId } from "@/lib/close/batchId";
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
@@ -108,7 +109,7 @@ describe("runClose on the demo day", () => {
 
     expect(createPayout).toHaveBeenCalledTimes(1);
     expect(createPayout).toHaveBeenCalledWith({
-      batchId: `stall-${businessId}-shift-${mariaShiftId}`,
+      batchId: obligationBatchId(businessId, "shift", mariaShiftId),
       receiverEmail: "maria@stall.example",
       cents: 12000,
       note: `Stall: shift ${today}`,
@@ -116,7 +117,7 @@ describe("runClose on the demo day", () => {
 
     const [row] = await db.select().from(payouts).where(eq(payouts.shiftId, mariaShiftId));
     expect(row).toMatchObject({
-      batchId: `stall-${businessId}-shift-${mariaShiftId}`,
+      batchId: obligationBatchId(businessId, "shift", mariaShiftId),
       paypalBatchId: "PB-TEST",
       amountCents: 12000,
       status: "PENDING",
@@ -142,7 +143,7 @@ describe("runClose on the demo day", () => {
     expect((await db.select().from(bills).where(eq(bills.id, rosaBillId)))[0]!.status).toBe("held");
 
     expect(result.paid).toEqual([
-      { obligationId: mariaShiftId, batchId: `stall-${businessId}-shift-${mariaShiftId}` },
+      { obligationId: mariaShiftId, batchId: obligationBatchId(businessId, "shift", mariaShiftId) },
     ]);
     expect(result.held).toEqual([{ decisionId: decisionRows[0]!.id }]);
     expect(result.skipped).toBe(0);
@@ -238,7 +239,7 @@ describe("runClose on the demo day", () => {
     await db.insert(payouts).values({
       businessId,
       shiftId: mariaShiftId,
-      batchId: `stall-${businessId}-shift-${mariaShiftId}`,
+      batchId: obligationBatchId(businessId, "shift", mariaShiftId),
       amountCents: 12000,
       status: "FAILED",
       rationale: "earlier attempt",
@@ -372,7 +373,7 @@ describe("payObligation duplicate handling", () => {
     await db.insert(payouts).values({
       businessId,
       shiftId: mariaShiftId,
-      batchId: `stall-${businessId}-shift-${mariaShiftId}`,
+      batchId: obligationBatchId(businessId, "shift", mariaShiftId),
       paypalBatchId: "PB-OLD",
       amountCents: 12000,
       status,

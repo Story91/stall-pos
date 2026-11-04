@@ -241,7 +241,7 @@ describe("close, decisions and day", () => {
     };
 
     expect(result.paid).toHaveLength(1);
-    expect(result.paid[0]!.batchId).toMatch(/^stall-.+-shift-/);
+    expect(result.paid[0]!.batchId).toMatch(/^st-s-[0-9a-f]{25}$/);
     expect(result.held).toHaveLength(2);
     expect(paypal.createPayout).toHaveBeenCalledTimes(1);
 

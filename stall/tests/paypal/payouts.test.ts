@@ -20,23 +20,23 @@ describe("createPayout", () => {
       batch_header: { payout_batch_id: "PB-REAL-1", batch_status: "PENDING" },
     });
     const result = await createPayout({
-      batchId: "stall-b1-bill-7",
+      batchId: "st-b-a1b2c3d4e5f60718293a4b5c6",
       receiverEmail: "rosa@example.com",
       cents: 12000,
       note: "Tortilla delivery",
     });
     expect(result).toEqual({
-      batchId: "stall-b1-bill-7",
+      batchId: "st-b-a1b2c3d4e5f60718293a4b5c6",
       paypalBatchId: "PB-REAL-1",
       status: "PENDING",
     });
     expect(mockFetch).toHaveBeenCalledWith({
       method: "POST",
       path: "/v1/payments/payouts",
-      requestId: "stall-b1-bill-7",
+      requestId: "st-b-a1b2c3d4e5f60718293a4b5c6",
       body: {
         sender_batch_header: {
-          sender_batch_id: "stall-b1-bill-7",
+          sender_batch_id: "st-b-a1b2c3d4e5f60718293a4b5c6",
           email_subject: "You have a payment from Stall",
           email_message: "Tortilla delivery",
         },
@@ -46,7 +46,7 @@ describe("createPayout", () => {
             receiver: "rosa@example.com",
             amount: { value: "120.00", currency: "USD" },
             note: "Tortilla delivery",
-            sender_item_id: "stall-b1-bill-7",
+            sender_item_id: "st-b-a1b2c3d4e5f60718293a4b5c6",
             recipient_wallet: "PAYPAL",
           },
         ],

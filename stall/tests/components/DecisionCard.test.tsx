@@ -25,7 +25,7 @@ const duplicate: DecisionRow = {
     },
     evidence: {
       paidBillId: "bill-old",
-      payoutBatchId: "stall-b1-bill-bill-old",
+      payoutBatchId: "st-b-a1b2c3d4e5f60718293a4b5c6",
       amountCents: 23500,
       note: "tortillas",
       date: "2026-11-02",
@@ -46,7 +46,7 @@ describe("DecisionCard", () => {
     expect(paid.textContent).toContain("$235.00");
     expect(paid.textContent).toContain("tortillas");
     expect(paid.textContent).toContain("Nov 2");
-    expect(paid.textContent).toContain("stall-b1-bill-bill-old");
+    expect(paid.textContent).toContain("st-b-a1b2c3d4e5f60718293a4b5c6");
 
     expect(screen.getByText("Possible duplicate")).toBeTruthy(); // the type badge
     expect(screen.getByText(/already paid on 2026-11-02/)).toBeTruthy(); // the reason

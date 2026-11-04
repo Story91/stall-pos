@@ -100,7 +100,7 @@ Out of scope: card reader, receipt printing, inventory, tables, multi-location, 
 - A paid invoice reports `payments.transactions[0].payment_date_time`. The field is **not** called `date`; the webhook handler reads the right one.
 - Payouts settle in about **18 seconds**: batch `PENDING`, `PROCESSING` at about 6 s, item `SUCCESS` at about 12 s, batch `SUCCESS` at about 18 s. The Close screen does not expect an instant result.
 - Each payout item costs **$0.25** in the US sandbox, so the demo's $120 payout costs $0.25.
-- Every money-moving call carries an idempotency key, a two-decimal string amount and an explicit currency, and its result is stored before anything is reported. The payout `sender_batch_id` is `stall-{businessId}-{shift|bill}-{id}`, so PayPal also rejects a duplicate.
+- Every money-moving call carries an idempotency key, a two-decimal string amount and an explicit currency, and its result is stored before anything is reported. The payout `sender_batch_id` (and `sender_item_id`) is `st-{s|b}-{25 hex of sha256(businessId:kind:obligationId)}`, deterministic so PayPal also rejects a duplicate. It is a 30-character hash because PayPal caps `sender_batch_id` at 30 characters and `sender_item_id` at 63 (`VALIDATION_ERROR size must be between 0 and 63`); the id scheme lives in [`batchId.ts`](stall/src/lib/close/batchId.ts) and needs no migration.
 
 ## How Stall uses AI
 

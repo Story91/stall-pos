@@ -1,7 +1,7 @@
 import { and, eq, inArray, or } from "drizzle-orm";
 import type { Db, Decision, Payout } from "@/db";
 import { bills, decisions, payees, payouts, shifts } from "@/db/schema";
-import { obligationBatchId } from "@/lib/close/agent";
+import { obligationBatchId } from "@/lib/close/batchId";
 import { PayPalError } from "@/lib/paypal/client";
 import { PayoutDuplicateError, type createPayout } from "@/lib/paypal/payouts";
 
