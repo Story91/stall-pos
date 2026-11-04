@@ -2,6 +2,8 @@ import { and, eq, inArray, or } from "drizzle-orm";
 import type { Db, Decision, Payout } from "@/db";
 import { bills, decisions, payees, payouts, shifts } from "@/db/schema";
 import { obligationBatchId } from "@/lib/close/batchId";
+import { closeMessages } from "@/lib/i18n/close";
+import type { Language } from "@/lib/parse/schema";
 import { PayPalError } from "@/lib/paypal/client";
 import { PayoutDuplicateError, type createPayout } from "@/lib/paypal/payouts";
 
@@ -87,7 +89,7 @@ async function settle(
  * PENDING payout row immediately, before the bill and decision are settled. If
  * settling fails, the row exists and a retry settles without paying again.
  * With `expectedCents` (the amount the owner was shown), approve refuses if the
- * amount owed has changed since.
+ * amount owed has changed since. `language` only words the stored payout rationale.
  */
 export function resolveDecision(
   db: Db,
@@ -95,6 +97,7 @@ export function resolveDecision(
   decisionId: string,
   action: DecisionAction,
   expectedCents?: number,
+  language: Language = "en",
 ): Promise<ResolveResult> {
   if (!UUID.test(decisionId)) return Promise.resolve({ ok: false, error: "not_found" });
   return serialize(decisionId, async (): Promise<ResolveResult> => {
@@ -192,7 +195,7 @@ export function resolveDecision(
         paypalBatchId,
         amountCents: cents,
         status: "PENDING",
-        rationale: "Approved by owner",
+        rationale: closeMessages(language).approvedByOwner,
       })
       .onConflictDoNothing({ target: payouts.batchId });
     return finish();

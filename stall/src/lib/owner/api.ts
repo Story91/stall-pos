@@ -1,5 +1,7 @@
 // Browser-side calls for the owner screens. Nothing throws: every failure comes
 // back as a status (0 = no connection) and the server's error code.
+import { messagesFor } from "@/lib/i18n";
+import type { Language } from "@/lib/parse/schema";
 
 export type OwnerResult<T> =
   | { ok: true; data: T }
@@ -40,22 +42,19 @@ export const send = (method: string, body?: unknown): RequestInit => ({
   body: body === undefined ? undefined : JSON.stringify(body),
 });
 
-/** Plain words for a failed call, for the screens' error boxes. */
-export function failureText(failure: { status: number; code: string }): string {
-  if (failure.status === 0) return "No connection. Check your signal and try again.";
-  if (failure.code === "paypal") return "PayPal is not responding. Try again in a moment.";
-  if (failure.code === "already_resolved") return "This was already decided. The card shows the outcome.";
-  if (failure.code === "already_paid") return "This was already paid, so nothing more was sent.";
-  if (failure.code === "has_payout") return "Already paid";
-  if (failure.code === "has_decision") return "Waiting on your decision on Close";
-  if (failure.code === "payout_exists_unrecorded") {
-    return "PayPal already has a payout for this item that we could not record. Check PayPal, then mark it as already paid.";
-  }
-  if (failure.code === "no_amount") return "This payee has no daily rate set.";
-  if (failure.code === "amount_changed") {
-    return "The amount changed since this card was shown. Check the new amount and approve again.";
-  }
-  if (failure.code === "parse_failed") return "Couldn't read that. Try again or fill in the form.";
-  if (failure.status === 400) return "Something in the form is not right. Check it and try again.";
-  return "Something went wrong on the server. Try again.";
+/** Plain words for a failed call, for the screens' error boxes, in the owner's language. */
+export function failureText(failure: { status: number; code: string }, language: Language = "en"): string {
+  const { common, errors } = messagesFor(language);
+  if (failure.status === 0) return common.noConnection;
+  if (failure.code === "paypal") return errors.paypal;
+  if (failure.code === "already_resolved") return errors.alreadyResolved;
+  if (failure.code === "already_paid") return errors.alreadyPaid;
+  if (failure.code === "has_payout") return errors.hasPayout;
+  if (failure.code === "has_decision") return errors.hasDecision;
+  if (failure.code === "payout_exists_unrecorded") return errors.payoutUnrecorded;
+  if (failure.code === "no_amount") return errors.noAmount;
+  if (failure.code === "amount_changed") return errors.amountChanged;
+  if (failure.code === "parse_failed") return errors.parseFailed;
+  if (failure.status === 400) return errors.invalid;
+  return common.serverError;
 }

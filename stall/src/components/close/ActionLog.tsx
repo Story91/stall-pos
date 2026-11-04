@@ -2,17 +2,8 @@
 
 import type { LogEntry } from "@/lib/owner/types";
 import { agentNote, nearDuplicate, plainText } from "@/lib/owner/text";
+import { useLanguage, useT } from "@/lib/i18n/useT";
 import { clockTime } from "@/lib/sell/format";
-
-const TOOL_LABEL: Record<string, string> = {
-  pay_obligation: "Paid",
-  hold_obligation: "Held for you",
-  write_summary: "Wrote the end-of-day note",
-  auto_pay: "Paid by the rules",
-  auto_hold: "Held by the rules",
-  model_text: "Agent said",
-  model_error: "Agent unavailable, rules finished the day",
-};
 
 type Props = {
   log: LogEntry[];
@@ -36,7 +27,10 @@ export function describeInput(entry: LogEntry, names: Map<string, string>): stri
 
 /** The audit trail of the close, step by step: what each tool did and whether code allowed it. */
 export function ActionLog({ log, names }: Props) {
-  if (log.length === 0) return <p className="text-lg text-graphite">Nothing was logged for this close.</p>;
+  const t = useT();
+  const language = useLanguage();
+  const toolLabels: Record<string, string> = t.actionLog.tools;
+  if (log.length === 0) return <p className="text-lg text-graphite">{t.actionLog.empty}</p>;
   const note = agentNote(log);
   // The note is shown once, above; its log entry and a repeat of it as the final text add nothing.
   const shown = log.filter((entry) => {
@@ -51,7 +45,8 @@ export function ActionLog({ log, names }: Props) {
         const error = field(entry.result, "error");
         const isNote = entry.tool === "write_summary";
         const isSaid = entry.tool === "model_text";
-        const saidText = field(entry.input, "text");
+        // The model's own words: recorded as input.text, or as the result for a plain text turn.
+        const saidText = field(entry.input, "text") ?? (typeof entry.result === "string" ? entry.result : undefined);
         const line = isNote ? "" : isSaid && typeof saidText === "string" ? plainText(saidText) : describeInput(entry, names);
         return (
           <li key={entry.step} className="relative flex gap-3 pb-4 pl-1 last:pb-0">
@@ -65,18 +60,18 @@ export function ActionLog({ log, names }: Props) {
             </span>
             <div className="min-w-0 flex-1 pt-1">
               <p className="flex flex-wrap items-baseline gap-x-2 text-lg font-semibold">
-                {TOOL_LABEL[entry.tool] ?? entry.tool}
-                {ok === true && <span className="rounded-md bg-wash px-2 text-base font-bold">ok</span>}
+                {toolLabels[entry.tool] ?? entry.tool}
+                {ok === true && <span className="rounded-md bg-wash px-2 text-base font-bold">{t.actionLog.ok}</span>}
                 {ok === false && (
-                  <span className="rounded-md bg-ink px-2 text-base font-bold text-marigold">refused</span>
+                  <span className="rounded-md bg-ink px-2 text-base font-bold text-marigold">{t.actionLog.refused}</span>
                 )}
-                <span className="ml-auto text-base font-normal text-graphite">{clockTime(entry.at)}</span>
+                <span className="ml-auto text-base font-normal text-graphite">{clockTime(entry.at, undefined, language)}</span>
               </p>
               {line && (
                 <p className={`text-base text-graphite ${isSaid ? "whitespace-pre-line" : "truncate"}`}>{line}</p>
               )}
               {ok === false && typeof error === "string" && (
-                <p className="text-base">Code said: {error}</p>
+                <p className="text-base">{t.actionLog.codeSaid} {error}</p>
               )}
             </div>
           </li>

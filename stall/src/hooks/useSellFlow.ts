@@ -6,7 +6,9 @@ import type { MicState } from "@/components/sell/MicButton";
 import type { Language } from "@/lib/parse/schema";
 import { sellApi, type BusinessInfo, type ChargeResponse, type FailureKind } from "@/lib/sell/api";
 import { confirmationText } from "@/lib/sell/confirmationText";
-import { readLanguage, subscribeLanguage, writeLanguage } from "@/lib/sell/languageStore";
+import { messagesFor } from "@/lib/i18n";
+import { useLanguage } from "@/lib/i18n/useT";
+import { writeLanguage } from "@/lib/sell/languageStore";
 import { canCharge, rowsToLines, toRows, type ItemRow } from "@/lib/sell/rows";
 import { speak } from "@/lib/voice/speak";
 import {
@@ -26,7 +28,7 @@ export type QrStage = { sale: ChargeResponse; language: Language };
 const noopSubscribe = () => () => {};
 
 export function useSellFlow() {
-  const language = useSyncExternalStore(subscribeLanguage, readLanguage, () => "en" as const);
+  const language = useLanguage();
   const micSupported = useSyncExternalStore(noopSubscribe, isRecognitionSupported, () => true);
 
   const [business, setBusiness] = useState<BusinessInfo | null>(null);
@@ -177,17 +179,20 @@ export function useSellFlow() {
     setCashError(null);
     const result = await sellApi.cash(qr.sale.saleId);
     setCashPending(false);
+    const t = messagesFor(language);
     if (result.ok) setPaidCash(true);
-    else if (result.kind === "conflict") setCashError("This sale cannot take cash now. It may already be paid.");
-    else if (result.kind === "network") setCashError("No connection. Check your signal and try again.");
-    else setCashError("PayPal did not record the cash payment. Try again.");
+    else if (result.kind === "conflict") setCashError(t.sell.cashConflict);
+    else if (result.kind === "network") setCashError(t.common.noConnection);
+    else setCashError(t.sell.cashFailed);
   };
 
+  // "Paid" is said in the language the screen is in now, so text and voice never disagree
+  // (the sale keeps the language its order was spoken in, for the record).
   const announcePaid = useCallback(() => {
     if (!qr) return;
-    speak(confirmationText(qr.language, qr.sale.totalCents), qr.language);
+    speak(confirmationText(language, qr.sale.totalCents), language);
     navigator.vibrate?.(200);
-  }, [qr]);
+  }, [qr, language]);
 
   const newSale = () => {
     handle.current?.stop();

@@ -96,6 +96,14 @@ describe("resolveDecision approve", () => {
     expect(await decisionStatus(decision.id)).toBe("approved");
   });
 
+  it("words the stored payout rationale in the owner's language", async () => {
+    const { bill, decision } = await heldBill(1000);
+    const result = await resolveDecision(db, { createPayout: okPayout() }, decision.id, "approve", undefined, "es");
+    expect(result.ok).toBe(true);
+    const [payout] = await db.select().from(payouts).where(eq(payouts.billId, bill.id));
+    expect(payout?.rationale).toBe("Aprobado por el dueño");
+  });
+
   it("pays a shift at the payee's daily rate", async () => {
     const shift = await logShift(db, businessId, mariaId, "2031-05-01");
     const [decision] = await db

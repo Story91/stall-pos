@@ -1,6 +1,7 @@
 "use client";
 
 import { Nav } from "@/components/Nav";
+import { useT } from "@/lib/i18n/useT";
 
 /** Shared page frame for the owner screens: leaves room for the fixed nav. */
 export function Screen({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,7 @@ export function SectionTitle({ id, children }: { id?: string; children: React.Re
 }
 
 export function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const t = useT();
   return (
     <div role="alert" className="flex flex-col gap-3 rounded-2xl bg-ink p-4 text-paper">
       <p className="text-lg">{message}</p>
@@ -39,7 +41,7 @@ export function ErrorBox({ message, onRetry }: { message: string; onRetry?: () =
           onClick={onRetry}
           className="min-h-14 rounded-xl bg-marigold px-4 text-xl font-bold text-ink"
         >
-          Try again
+          {t.common.tryAgain}
         </button>
       )}
     </div>

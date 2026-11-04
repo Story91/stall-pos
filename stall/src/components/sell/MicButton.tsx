@@ -1,6 +1,7 @@
 "use client";
 
 import type { KeyboardEvent, PointerEvent } from "react";
+import { useT } from "@/lib/i18n/useT";
 
 export type MicState = "idle" | "listening" | "busy";
 
@@ -14,11 +15,6 @@ type Props = {
   busyLabel?: string;
   onPressStart(): void;
   onPressEnd(): void;
-};
-
-const LABELS: Record<Exclude<MicState, "idle">, string> = {
-  listening: "Listening… let go when done",
-  busy: "Reading the order…",
 };
 
 /**
@@ -35,12 +31,16 @@ export function MicButton({
   onPressStart,
   onPressEnd,
 }: Props) {
+  const t = useT();
   const listening = state === "listening";
   const disabled = !supported || state === "busy";
   // The accessible name stays put while the state changes; state is announced
   // through the live region below instead of by renaming the button.
-  const name = supported ? idleLabel : "Voice is not available in this browser";
-  const labels = busyLabel ? { ...LABELS, busy: busyLabel } : LABELS;
+  const name = supported ? idleLabel : t.mic.unavailable;
+  const labels: Record<Exclude<MicState, "idle">, string> = {
+    listening: t.mic.listening,
+    busy: busyLabel ?? t.mic.readingOrder,
+  };
   const label = !supported || state === "idle" ? name : labels[state];
 
   const down = (e: PointerEvent<HTMLButtonElement>) => {

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ShownStatus } from "@/hooks/useSaleStatus";
+import { useT } from "@/lib/i18n/useT";
 import { formatCents } from "@/lib/sell/format";
 
 export type QrScreenProps = {
@@ -43,6 +44,7 @@ function WaitingView({
   onCash,
   onNewSale,
 }: QrScreenProps) {
+  const t = useT();
   const [confirmingCash, setConfirmingCash] = useState(false);
   const [copied, setCopied] = useState(false);
   const total = formatCents(totalCents);
@@ -58,9 +60,9 @@ function WaitingView({
   };
 
   return (
-    <section aria-label="Payment" className="flex flex-col items-center gap-5 text-center">
+    <section aria-label={t.qr.label} className="flex flex-col items-center gap-5 text-center">
       <div>
-        <p className="text-lg text-graphite">Total</p>
+        <p className="text-lg text-graphite">{t.qr.total}</p>
         <p className="money text-7xl font-extrabold leading-none">{total}</p>
       </div>
 
@@ -68,17 +70,17 @@ function WaitingView({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`data:image/png;base64,${qrPng}`}
-        alt={`Scan to pay ${total} with PayPal`}
+        alt={t.qr.scanAlt(total)}
         className="aspect-square w-full max-w-72 rounded-2xl border-[6px] border-ink bg-paper p-2 [image-rendering:pixelated]"
       />
 
       <p role="status" className="flex items-center gap-3 text-2xl font-semibold">
         {cancelled ? (
-          "This invoice was cancelled."
+          t.qr.cancelled
         ) : (
           <>
             <span aria-hidden className="listening-ring size-3 rounded-full bg-marigold" />
-            Waiting for payment…
+            {t.qr.waiting}
           </>
         )}
       </p>
@@ -88,21 +90,21 @@ function WaitingView({
         onClick={copy}
         className="flex min-h-14 w-full max-w-sm flex-col items-center justify-center rounded-xl border-2 border-ink px-4 py-2"
       >
-        <span className="text-lg font-semibold">{copied ? "Pay link copied" : "Copy pay link"}</span>
+        <span className="text-lg font-semibold">{copied ? t.qr.copied : t.qr.copy}</span>
         <span className="w-full truncate text-sm text-graphite">{payLink}</span>
       </button>
 
       <div className="flex w-full max-w-sm flex-col gap-2">
         {confirmingCash ? (
           <div className="flex flex-col gap-2 rounded-2xl bg-wash p-3">
-            <p className="text-lg font-medium">Did the customer hand you {total} in cash?</p>
+            <p className="text-lg font-medium">{t.qr.cashQuestion(total)}</p>
             <button
               type="button"
               disabled={cashPending}
               onClick={onCash}
               className="min-h-14 rounded-xl bg-ink px-4 text-xl font-semibold text-paper disabled:opacity-60"
             >
-              {cashPending ? "Recording cash…" : `Yes, got ${total} cash`}
+              {cashPending ? t.qr.recordingCash : t.qr.yesCash(total)}
             </button>
             <button
               type="button"
@@ -110,7 +112,7 @@ function WaitingView({
               onClick={() => setConfirmingCash(false)}
               className="min-h-14 rounded-xl px-4 text-lg font-medium"
             >
-              Not yet
+              {t.qr.notYet}
             </button>
           </div>
         ) : (
@@ -119,7 +121,7 @@ function WaitingView({
             onClick={() => setConfirmingCash(true)}
             className="min-h-14 rounded-xl border-2 border-ink px-4 text-xl font-semibold"
           >
-            Paid in cash
+            {t.qr.paidInCash}
           </button>
         )}
         {cashError && (
@@ -132,7 +134,7 @@ function WaitingView({
           onClick={onNewSale}
           className="min-h-14 rounded-xl px-4 text-lg font-medium text-graphite underline underline-offset-4"
         >
-          Start a different sale
+          {t.qr.differentSale}
         </button>
       </div>
     </section>
@@ -140,9 +142,10 @@ function WaitingView({
 }
 
 function PaidView({ totalCents, status, onNewSale }: QrScreenProps) {
+  const t = useT();
   return (
     <section
-      aria-label="Paid"
+      aria-label={t.qr.paid}
       className="paid-in fixed inset-0 z-10 flex flex-col items-center justify-center gap-6 bg-marigold px-6 pt-[env(safe-area-inset-top)] pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center"
     >
       <svg aria-hidden viewBox="0 0 96 96" className="size-28">
@@ -156,16 +159,16 @@ function PaidView({ totalCents, status, onNewSale }: QrScreenProps) {
           strokeLinejoin="round"
         />
       </svg>
-      <h1 className="money text-6xl font-extrabold">Paid</h1>
+      <h1 className="money text-6xl font-extrabold">{t.qr.paid}</h1>
       <p className="money text-8xl font-extrabold leading-none">{formatCents(totalCents)}</p>
-      <p className="text-2xl font-semibold">{status === "paid_cash" ? "Cash" : "PayPal"}</p>
+      <p className="text-2xl font-semibold">{status === "paid_cash" ? t.qr.cash : "PayPal"}</p>
       <button
         type="button"
         onClick={onNewSale}
         autoFocus
         className="mt-4 min-h-20 w-full max-w-sm rounded-2xl bg-ink px-6 text-3xl font-bold text-paper"
       >
-        New sale
+        {t.qr.newSale}
       </button>
     </section>
   );

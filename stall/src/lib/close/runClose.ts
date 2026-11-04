@@ -3,6 +3,8 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "@/db";
 import { agentRuns } from "@/db/schema";
 import { getModel } from "@/lib/ai/model";
+import { closeMessages } from "@/lib/i18n/close";
+import type { Language } from "@/lib/parse/schema";
 import type { createPayout } from "@/lib/paypal/payouts";
 import {
   buildClosePrompt,
@@ -18,7 +20,6 @@ import { evaluateObligations, type RuleOutcome } from "./rules";
 
 export const DEFAULT_BUSINESS_DAILY_CAP_CENTS = 100_000;
 const MAX_MODEL_STEPS = 8;
-const ALREADY_ESCALATED = "Already escalated to the owner; waiting for their decision.";
 
 export type RunCloseDeps = {
   model?: LanguageModel;
@@ -36,34 +37,37 @@ export type RunCloseResult = {
   agentNote: string | null;
 };
 
-function deterministicSummary(
+/** Built by code from what happened; `language` changes the wording only. */
+export function deterministicSummary(
   date: string,
-  state: CloseState,
+  state: Pick<CloseState, "paid" | "held" | "outcomes">,
   failed: RuleOutcome[],
   skipped: number,
+  language: Language = "en",
 ): string {
+  const m = closeMessages(language).summary;
   const label = (o: RuleOutcome, cents: number) => `${o.obligation.payee.name} ${formatCents(cents)}`;
-  const parts: string[] = [`Closed ${date}.`];
+  const parts: string[] = [m.closed(date)];
 
   const paid = [...state.paid.values()];
   if (paid.length > 0) {
     const total = paid.reduce((sum, p) => sum + p.cents, 0);
     const names = paid.map((p) => label(state.outcomes.get(p.obligationId)!, p.cents)).join(", ");
-    parts.push(`Paid ${paid.length} (${formatCents(total)} total): ${names}.`);
+    parts.push(m.paid(paid.length, formatCents(total), names));
   }
   const heldOutcomes = [...state.held.keys()].map((id) => state.outcomes.get(id)!);
   if (heldOutcomes.length > 0) {
     const names = heldOutcomes
       .map((o) => `${label(o, o.obligation.amountCents)} (${state.held.get(o.obligation.id)!.reason})`)
       .join("; ");
-    parts.push(`${heldOutcomes.length} need your decision: ${names}.`);
+    parts.push(m.needDecision(heldOutcomes.length, names));
   }
   if (failed.length > 0) {
     const names = failed.map((o) => label(o, o.obligation.amountCents)).join(", ");
-    parts.push(`${failed.length} could not be paid and will be retried: ${names}.`);
+    parts.push(m.failed(failed.length, names));
   }
-  if (skipped > 0) parts.push(`${skipped} already handled.`);
-  if (parts.length === 1) parts.push("Nothing to pay today.");
+  if (skipped > 0) parts.push(m.skipped(skipped));
+  if (parts.length === 1) parts.push(m.nothing);
   return parts.join(" ");
 }
 
@@ -75,9 +79,11 @@ function deterministicSummary(
 export async function runClose(
   db: Db,
   deps: RunCloseDeps,
-  input: { businessId: string; date: string },
+  input: { businessId: string; date: string; language?: Language },
 ): Promise<RunCloseResult> {
   const { businessId, date } = input;
+  // The owner's language: wording of reasons, summary and the agent's note. Never a money rule.
+  const language = input.language ?? "en";
   const now = deps.now;
   const data = await loadCloseData(db, businessId, date, now ?? new Date());
 
@@ -88,10 +94,12 @@ export async function runClose(
     paidBills: data.paidBills,
     paidTodayByPayee: data.paidTodayByPayee,
     businessDailyCapCents: deps.businessDailyCapCents ?? DEFAULT_BUSINESS_DAILY_CAP_CENTS,
+    language,
   });
   // Anything already escalated belongs to the owner now: never re-decide it, never pay it.
+  const alreadyEscalated = closeMessages(language).reasons.alreadyEscalated;
   const outcomes: RuleOutcome[] = evaluated.map((o) =>
-    data.decidedIds.has(o.obligation.id) ? { ...o, verdict: "skip", reason: ALREADY_ESCALATED } : o,
+    data.decidedIds.has(o.obligation.id) ? { ...o, verdict: "skip", reason: alreadyEscalated } : o,
   );
 
   const state: CloseState = {
@@ -117,6 +125,7 @@ export async function runClose(
           businessName: data.businessName,
           sales: data.sales,
           outcomes,
+          language,
         }),
         prompt: "Close out the day now.",
         tools: createCloseTools(state),
@@ -159,7 +168,7 @@ export async function runClose(
     .where(and(eq(agentRuns.businessId, businessId), eq(agentRuns.date, date)));
 
   // Facts come from what actually happened, never from the model's text.
-  const summary = deterministicSummary(date, state, failed, skipped);
+  const summary = deterministicSummary(date, state, failed, skipped, language);
   const acted =
     state.paid.size > 0 ||
     state.held.size > 0 ||

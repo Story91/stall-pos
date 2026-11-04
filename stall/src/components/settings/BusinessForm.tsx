@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Spinner } from "@/components/ui";
+import { useT } from "@/lib/i18n/useT";
 import type { BusinessView } from "@/lib/owner/types";
 
 type Props = {
@@ -25,6 +26,7 @@ function percentText(rate: number): string {
 }
 
 export function BusinessForm({ business, onSave }: Props) {
+  const t = useT();
   const [name, setName] = useState(business.name);
   const [tax, setTax] = useState(percentText(business.taxRate));
   const [saving, setSaving] = useState(false);
@@ -41,17 +43,17 @@ export function BusinessForm({ business, onSave }: Props) {
     setResult(null);
     const outcome = await onSave({ name: name.trim(), taxRate: rate });
     setSaving(false);
-    setResult(outcome.ok ? { ok: true, text: "Saved. New sales use these." } : { ok: false, text: outcome.message });
+    setResult(outcome.ok ? { ok: true, text: t.businessForm.saved } : { ok: false, text: outcome.message });
   };
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1 text-base font-medium">
-        Business name
+        {t.businessForm.name}
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} className={field} />
       </label>
       <label className="flex flex-col gap-1 text-base font-medium">
-        Sales tax, percent
+        {t.businessForm.tax}
         <input
           value={tax}
           onChange={(e) => setTax(e.target.value)}
@@ -60,14 +62,14 @@ export function BusinessForm({ business, onSave }: Props) {
           className={`money text-xl ${field}`}
         />
       </label>
-      {rate === null && <p className="text-base font-semibold">Enter a percentage from 0 to 25, like 8.25.</p>}
+      {rate === null && <p className="text-base font-semibold">{t.businessForm.taxHint}</p>}
       <button
         type="submit"
         disabled={!ready}
         className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-ink text-xl font-bold text-paper disabled:opacity-40"
       >
         {saving && <Spinner />}
-        Save changes
+        {t.businessForm.save}
       </button>
       {result && (
         <p role={result.ok ? "status" : "alert"} className="text-lg font-semibold">

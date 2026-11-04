@@ -16,6 +16,7 @@ import {
   removeShift,
 } from "@/lib/obligations";
 import { parseObligation } from "@/lib/parse/parseObligation";
+import { LANGUAGES } from "@/lib/parse/schema";
 import { parseBody, ParseFailedError } from "@/lib/salesApi";
 import { getBusiness } from "@/lib/sales";
 import type { createPayout } from "@/lib/paypal/payouts";
@@ -32,11 +33,15 @@ export const billBody = z.object({
   date: isoDate.optional(),
   photoUrl: z.string().url().max(2048).optional(),
 });
-export const closeBody = z.object({ date: isoDate.optional() });
+/** The owner's language words the summary and reasons; absent (the cron ping) means English. */
+const ownerLanguage = z.enum(LANGUAGES).default("en");
+
+export const closeBody = z.object({ date: isoDate.optional(), language: ownerLanguage });
 export const decisionBody = z.object({
   action: z.enum(["approve", "decline", "mark_paid"]),
   /** The amount the owner was shown; approve refuses if what is owed has changed since. */
   expectedCents: z.number().int().positive().optional(),
+  language: ownerLanguage,
 });
 
 export function parseDate(value: string): string {
@@ -112,7 +117,7 @@ export async function closeDay(
   const date = input.date ?? today;
   // A future day would see none of today's payouts and so reset the per-day limits.
   if (date > today) throw new ApiError(400, "future_date");
-  return runClose(db, deps, { businessId: business.id, date });
+  return runClose(db, deps, { businessId: business.id, date, language: input.language });
 }
 
 export async function closeViewFor(db: Db, date: string) {
@@ -138,8 +143,15 @@ export async function decide(
   decisionId: string,
   body: unknown,
 ) {
-  const { action, expectedCents } = decisionBody.parse(body);
-  const result = await resolveDecision(db, deps, decisionId, action as DecisionAction, expectedCents);
+  const { action, expectedCents, language } = decisionBody.parse(body);
+  const result = await resolveDecision(
+    db,
+    deps,
+    decisionId,
+    action as DecisionAction,
+    expectedCents,
+    language,
+  );
   if (!result.ok) {
     throw new ApiError(
       FAILURE_STATUS[result.error] ?? 409,

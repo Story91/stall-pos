@@ -5,7 +5,9 @@ import type { BillDraft, BillInput } from "@/components/day/BillLogger";
 import type { MicState } from "@/components/sell/MicButton";
 import { failureText, ownerCall, send } from "@/lib/owner/api";
 import type { BusinessView, DayView, PayeeRow } from "@/lib/owner/types";
-import { readLanguage, subscribeLanguage } from "@/lib/sell/languageStore";
+import { messagesFor } from "@/lib/i18n";
+import { useLanguage } from "@/lib/i18n/useT";
+import { readLanguage } from "@/lib/sell/languageStore";
 import { isRecognitionSupported, startTranscription, type TranscriptionHandle } from "@/lib/voice/transcribe";
 
 type Parsed =
@@ -26,16 +28,21 @@ async function fetchDayScreen(): Promise<Loaded> {
     ownerCall<BusinessView>("/api/business"),
     ownerCall<PayeeRow[]>("/api/payees"),
   ]);
-  if (!biz.ok) return { ok: false, message: failureText(biz) };
-  if (!people.ok) return { ok: false, message: failureText(people) };
+  // Read at call time: this runs outside render, after the owner's language is known.
+  const language = readLanguage();
+  if (!biz.ok) return { ok: false, message: failureText(biz, language) };
+  if (!people.ok) return { ok: false, message: failureText(people, language) };
   const day = await ownerCall<DayView>(`/api/day/${biz.data.today}`);
-  if (!day.ok) return { ok: false, message: failureText(day) };
+  if (!day.ok) return { ok: false, message: failureText(day, language) };
   return { ok: true, business: biz.data, payees: people.data, day: day.data };
 }
 
 /** Everything the Day screen reads and does: today's sales, shifts, bills, payouts, decisions. */
 export function useDay() {
-  const language = useSyncExternalStore(subscribeLanguage, readLanguage, () => "en" as const);
+  const language = useLanguage();
+  const t = messagesFor(language);
+  // Errors are worded when they happen, in the language chosen at that moment.
+  const failed = (failure: { status: number; code: string }) => failureText(failure, language);
   const micSupported = useSyncExternalStore(noopSubscribe, isRecognitionSupported, () => true);
 
   const [business, setBusiness] = useState<BusinessView | null>(null);
@@ -57,7 +64,7 @@ export function useDay() {
     if (result.ok) {
       setDay(result.data);
       setLoadError(null);
-    } else setLoadError(failureText(result));
+    } else setLoadError(failureText(result, readLanguage()));
   }, []);
 
   const apply = useCallback((loaded: Loaded) => {
@@ -89,15 +96,15 @@ export function useDay() {
     const result = worked
       ? await ownerCall(`/api/shifts?payeeId=${payeeId}&date=${date}`, { method: "DELETE" })
       : await ownerCall("/api/shifts", send("POST", { payeeId, date }));
-    if (!result.ok) setShiftMessages((m) => ({ ...m, [payeeId]: failureText(result) }));
+    if (!result.ok) setShiftMessages((m) => ({ ...m, [payeeId]: failed(result) }));
     await refreshDay(date);
     mark(payeeId, false);
   };
 
   const saveBill = async (input: BillInput) => {
-    if (!business) return { ok: false as const, message: "Still loading. Try again in a moment." };
+    if (!business) return { ok: false as const, message: t.day.stillLoading };
     const result = await ownerCall("/api/bills", send("POST", { ...input, date: business.today }));
-    if (!result.ok) return { ok: false as const, message: failureText(result) };
+    if (!result.ok) return { ok: false as const, message: failed(result) };
     setHeard(null);
     await refreshDay(business.today);
     return { ok: true as const };
@@ -105,11 +112,11 @@ export function useDay() {
 
   const applyParsed = (parsed: Parsed, transcript: string) => {
     if (parsed.kind === "none") {
-      setVoiceNotice(`Didn't catch a bill or a shift in "${transcript}". Say it again or fill in the form.`);
+      setVoiceNotice(t.day.noBillOrShift(transcript));
       return;
     }
     if (parsed.kind === "shift") {
-      const name = payees.find((p) => p.id === parsed.payeeId)?.name ?? "This helper";
+      const name = payees.find((p) => p.id === parsed.payeeId)?.name ?? t.day.thisHelper;
       setSuggestion({ payeeId: parsed.payeeId, name });
       return;
     }
@@ -131,7 +138,7 @@ export function useDay() {
         handle.current = null;
         if (!text) {
           setMic("idle");
-          setVoiceNotice("Didn't hear anything. Hold the button the whole time you talk.");
+          setVoiceNotice(t.sell.noSpeech);
           return;
         }
         setMic("busy");
@@ -141,15 +148,13 @@ export function useDay() {
         );
         setMic("idle");
         if (result.ok) applyParsed(result.data, text);
-        else setVoiceNotice(failureText(result));
+        else setVoiceNotice(failed(result));
       },
       onError(error) {
         handle.current = null;
         setMic("idle");
         setVoiceNotice(
-          error === "denied"
-            ? "The microphone is blocked. Fill in the form, or allow the microphone for this site."
-            : "Didn't hear anything. Hold the button the whole time you talk.",
+          error === "denied" ? t.day.micDenied : t.sell.noSpeech,
         );
       },
     });

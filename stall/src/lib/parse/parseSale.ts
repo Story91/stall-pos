@@ -63,6 +63,7 @@ export function buildSystemPrompt(language: Language, catalog: CatalogItem[]): s
     "- Use qty 1 when no quantity is spoken.",
     "- Never invent items. Only include things the vendor actually said they sold. Ignore chatter and greetings.",
     "- Prefer the exact catalog name when the vendor clearly means a catalog item; otherwise keep the spoken name.",
+    "- Catalog names can be in another language than the transcript. When the vendor names a catalog item by a translation or a local word for it (\"woda owocowa\" or \"fruit water\" for Agua fresca, \"kukurydza\" for Elote), use the catalog name. Never translate an item that is not in the catalog; keep it as spoken.",
     "- confidence is 0 to 1: lower it when the audio looks garbled or the item or number is ambiguous.",
     `- spokenConfirmation repeats the items and quantities in ${languageName} (the same language as the transcript) as one short, total-free sentence. Never state a total.`,
     "- If there are no items, return an empty items array and a short spokenConfirmation asking the vendor to repeat the sale.",

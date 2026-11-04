@@ -1,4 +1,6 @@
 // Client-safe money helpers (no server imports): integer cents in, display text out.
+import { LOCALES } from "@/lib/i18n/locale";
+import type { Language } from "@/lib/parse/schema";
 
 const dollars = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -39,19 +41,26 @@ export function maskEmail(email: string): string {
   return `${email[0]}••••${email.slice(at)}`;
 }
 
-/** "3:05 PM" in the business timezone. */
-export function clockTime(iso: string, tz?: string): string {
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(
+/** "3:05 PM" (or "15:05" in Polish) in the business timezone. */
+export function clockTime(iso: string, tz?: string, language: Language = "en"): string {
+  return new Intl.DateTimeFormat(LOCALES[language], { hour: "numeric", minute: "2-digit", timeZone: tz }).format(
     new Date(iso),
   );
 }
 
-/** "2026-11-04" -> "Wednesday, November 4". */
-export function longDate(date: string): string {
-  return new Intl.DateTimeFormat("en-US", {
+/** "2026-11-04" -> "Wednesday, November 4" ("środa, 4 listopada" in Polish). */
+export function longDate(date: string, language: Language = "en"): string {
+  return new Intl.DateTimeFormat(LOCALES[language], {
     weekday: "long",
     month: "long",
     day: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${date}T12:00:00Z`));
+}
+
+/** "2026-11-02" -> "Nov 2" ("2 lis" in Polish). */
+export function shortDate(date: string, language: Language = "en"): string {
+  return new Intl.DateTimeFormat(LOCALES[language], { month: "short", day: "numeric", timeZone: "UTC" }).format(
+    new Date(`${date}T12:00:00Z`),
+  );
 }

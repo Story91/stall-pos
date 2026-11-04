@@ -1,6 +1,7 @@
 "use client";
 
 import { Spinner } from "@/components/ui";
+import { useT } from "@/lib/i18n/useT";
 import type { PayeeRow } from "@/lib/owner/types";
 import { formatCents } from "@/lib/sell/format";
 
@@ -15,11 +16,10 @@ type Props = {
 };
 
 export function PayeeChips({ payees: all, worked, busy, messages, onToggle }: Props) {
+  const t = useT();
   if (all.length === 0) {
     return (
-      <p className="text-lg text-graphite">
-        No helpers yet. Helpers you add in Settings show here, ready to tap.
-      </p>
+      <p className="text-lg text-graphite">{t.payees.noHelpers}</p>
     );
   }
   // A shift without a daily rate could never be paid, so there is no chip to log one;
@@ -27,9 +27,7 @@ export function PayeeChips({ payees: all, worked, busy, messages, onToggle }: Pr
   const payees = all.filter((p) => p.dailyRateCents !== null || worked.has(p.id));
   if (payees.length === 0) {
     return (
-      <p className="text-lg text-graphite">
-        No helpers with a daily rate yet. Set one in Settings to log shifts here.
-      </p>
+      <p className="text-lg text-graphite">{t.payees.noRates}</p>
     );
   }
   return (
@@ -67,7 +65,7 @@ export function PayeeChips({ payees: all, worked, busy, messages, onToggle }: Pr
               </span>
               <span className="flex-1 text-xl font-semibold">{payee.name}</span>
               <span className={`money text-lg ${on ? "text-marigold" : "text-graphite"}`}>
-                {payee.dailyRateCents === null ? "No rate set" : `${formatCents(payee.dailyRateCents)} a day`}
+                {payee.dailyRateCents === null ? t.payees.noRate : t.payees.perDay(formatCents(payee.dailyRateCents))}
               </span>
             </button>
             {message && (

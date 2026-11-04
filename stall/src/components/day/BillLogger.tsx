@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { MicButton, type MicState } from "@/components/sell/MicButton";
 import { Spinner } from "@/components/ui";
+import { useT } from "@/lib/i18n/useT";
 import type { PayeeRow } from "@/lib/owner/types";
 import { formatCents, parseDollars, plainAmount } from "@/lib/sell/format";
 
@@ -28,6 +29,7 @@ const field =
 
 export function BillLogger(props: Props) {
   const { payees, draft, heard, voiceNotice, onSave } = props;
+  const t = useT();
   const [payeeId, setPayeeId] = useState(draft?.payeeId ?? "");
   const [amount, setAmount] = useState(draft?.amountCents ? plainAmount(draft.amountCents) : "");
   const [note, setNote] = useState(draft?.note ?? "");
@@ -48,8 +50,8 @@ export function BillLogger(props: Props) {
       setResult({ ok: false, text: outcome.message });
       return;
     }
-    const name = payees.find((p) => p.id === payeeId)?.name ?? "Bill";
-    setResult({ ok: true, text: `Saved: ${name} ${formatCents(cents)} for ${note.trim()}.` });
+    const name = payees.find((p) => p.id === payeeId)?.name ?? t.bill.fallbackName;
+    setResult({ ok: true, text: t.bill.saved(name, formatCents(cents), note.trim()) });
     setAmount("");
     setNote("");
   };
@@ -60,8 +62,8 @@ export function BillLogger(props: Props) {
         state={props.mic}
         supported={props.micSupported}
         size="compact"
-        idleLabel="Hold and say the bill"
-        busyLabel="Reading the bill…"
+        idleLabel={t.bill.holdAndSay}
+        busyLabel={t.bill.reading}
         onPressStart={props.onPressStart}
         onPressEnd={props.onPressEnd}
       />
@@ -77,17 +79,18 @@ export function BillLogger(props: Props) {
       >
         {heard ? (
           <p className="text-lg">
-            Heard <q className="font-semibold">{heard}</q>. Check it, then save.
+            {t.bill.heard} <q className="font-semibold">{heard}</q>
+            {t.bill.heardAfter}
           </p>
         ) : (
           <p className="text-lg text-graphite">
-            Or fill it in, like <q className="text-ink">Rosa, 240 dollars for tortillas</q>.
+            {t.bill.fillLike} <q className="text-ink">{t.bill.fillExample}</q>.
           </p>
         )}
         <label className="flex flex-col gap-1 text-base font-medium">
-          Who
+          {t.bill.who}
           <select value={payeeId} onChange={(e) => setPayeeId(e.target.value)} className={field}>
-            <option value="">Pick a person or supplier</option>
+            <option value="">{t.bill.pick}</option>
             {payees.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -97,7 +100,7 @@ export function BillLogger(props: Props) {
         </label>
         <div className="grid grid-cols-[8rem_1fr] gap-2">
           <label className="flex flex-col gap-1 text-base font-medium">
-            Amount
+            {t.bill.amount}
             <input
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -108,12 +111,12 @@ export function BillLogger(props: Props) {
             />
           </label>
           <label className="flex flex-col gap-1 text-base font-medium">
-            What for
+            {t.bill.whatFor}
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
               maxLength={140}
-              placeholder="Tortillas"
+              placeholder={t.bill.notePlaceholder}
               autoComplete="off"
               className={field}
             />
@@ -125,7 +128,7 @@ export function BillLogger(props: Props) {
           className="flex min-h-14 items-center justify-center gap-2 rounded-xl bg-ink text-xl font-bold text-paper disabled:opacity-40"
         >
           {saving && <Spinner />}
-          Save bill
+          {t.bill.save}
         </button>
         {result && (
           <p role={result.ok ? "status" : "alert"} className="text-lg font-semibold">

@@ -337,6 +337,30 @@ describe("close, decisions and day", () => {
     expect((await closePost(req("POST", "/api/close", { date: "soon" }))).status).toBe(400);
   });
 
+  it("accepts the owner's language and rejects one it does not know", async () => {
+    paypal.createPayout.mockClear();
+    const bad = await closePost(req("POST", "/api/close", { date: "2020-01-01", language: "de" }));
+    expect(bad.status).toBe(400);
+    expect(((await bad.json()) as { error: string }).error).toBe("invalid_request");
+
+    // An empty past day: nothing to pay, but the summary comes back in Polish.
+    const res = await closePost(req("POST", "/api/close", { date: "2020-01-01", language: "pl" }));
+    expect(res.status).toBe(200);
+    const result = (await res.json()) as { summary: string };
+    expect(result.summary).toBe("Zamknięto dzień 1 stycznia. Dziś nie ma nic do wypłacenia.");
+
+    const spanish = await closePost(req("POST", "/api/close", { date: "2020-01-02", language: "es" }));
+    expect(((await spanish.json()) as { summary: string }).summary).toBe(
+      "Cierre del 2 de enero. Hoy no hay nada que pagar.",
+    );
+    // No language (the scheduler ping, or an older client) means English.
+    const english = await closePost(req("POST", "/api/close", { date: "2020-01-03" }));
+    expect(((await english.json()) as { summary: string }).summary).toBe(
+      "Closed January 3. Nothing to pay today.",
+    );
+    expect(paypal.createPayout).not.toHaveBeenCalled();
+  });
+
   it("refuses to close a future date, so it cannot reset the per-day caps", async () => {
     paypal.createPayout.mockClear();
     const res = await closePost(req("POST", "/api/close", { date: "2099-01-01" }));

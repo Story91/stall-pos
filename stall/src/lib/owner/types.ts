@@ -150,6 +150,6 @@ export function payeeNames(day: Pick<DayView, "shifts" | "bills"> | null): Map<s
   return names;
 }
 
-export function payoutPayee(payout: PayoutRow, names: Map<string, string>): string {
-  return payout.payeeName ?? names.get(payout.shiftId ?? payout.billId ?? "") ?? "Unknown payee";
+export function payoutPayee(payout: PayoutRow, names: Map<string, string>, unknown = "Unknown payee"): string {
+  return payout.payeeName ?? names.get(payout.shiftId ?? payout.billId ?? "") ?? unknown;
 }

@@ -14,6 +14,7 @@ import {
 import type { Db } from "@/db";
 import { businessDate } from "@/lib/dates";
 import { obligationBatchId } from "@/lib/close/batchId";
+import { matchCatalog } from "@/lib/parse/matchCatalog";
 
 describe("seed", () => {
   let db: Db;
@@ -122,14 +123,36 @@ describe("seed", () => {
     expect(rows).toHaveLength(1);
   });
 
-  it("seeds 12 catalog items and at least 20 sales across the past week", async () => {
+  it("seeds 13 catalog items and at least 20 sales across the past week", async () => {
     const items = await db.select().from(catalogItems);
-    expect(items).toHaveLength(12);
+    expect(items).toHaveLength(13);
     const salesRows = await db.select().from(sales);
     expect(salesRows.length).toBeGreaterThanOrEqual(20);
     for (const s of salesRows) {
       expect(["paid", "paid_cash"]).toContain(s.status);
       expect(s.totalCents).toBe(s.subtotalCents + s.taxCents + s.tipCents);
+    }
+  });
+
+  it("matches the menu when the owner names items in English, Spanish or Polish", async () => {
+    const catalog = await db.select().from(catalogItems);
+    const said = {
+      "Agua fresca": ["agua fresca", "fruit water", "woda owocowa", "lemoniada"],
+      "Mexican Coke": ["coke", "coca", "cola", "kola", "coca de vidrio"],
+      "Chips and salsa": ["chips", "totopos", "nachos", "chipsy"],
+      Elote: ["corn", "elote", "kukurydza"],
+      Churros: ["churro", "czurros"],
+      Quesadilla: ["kesadilla", "quesadillas"],
+      Horchata: ["orczata"],
+      "Bottled water": ["water", "agua", "woda", "butelka wody"],
+    } satisfies Record<string, string[]>;
+    for (const [name, words] of Object.entries(said)) {
+      const items = matchCatalog(
+        words.map((word) => ({ name: word, qty: 1, unitCents: null, confidence: 1 })),
+        catalog,
+      );
+      const id = catalog.find((c) => c.name === name)!.id;
+      for (const [i, item] of items.entries()) expect(item.catalogItemId, words[i]).toBe(id);
     }
   });
 
@@ -148,7 +171,7 @@ describe("seed", () => {
     expect(await db.select().from(businesses)).toHaveLength(1);
     expect(await db.select().from(payees)).toHaveLength(2);
     expect(await db.select().from(bills)).toHaveLength(2);
-    expect(await db.select().from(catalogItems)).toHaveLength(12);
+    expect(await db.select().from(catalogItems)).toHaveLength(13);
     expect(await db.select().from(sales)).toHaveLength(before.sales);
     expect(await db.select().from(shifts)).toHaveLength(before.shifts);
     expect(await db.select().from(payouts)).toHaveLength(before.payouts);

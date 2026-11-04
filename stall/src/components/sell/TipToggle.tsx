@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/lib/i18n/useT";
 import { formatCents } from "@/lib/sell/format";
 
 export type TipPct = 0 | 15 | 18 | 20 | null;
@@ -14,8 +15,9 @@ type Props = {
 };
 
 export function TipToggle({ value, onChange, subtotalCents }: Props) {
+  const t = useT();
   return (
-    <div role="radiogroup" aria-label="Tip" className="grid grid-cols-4 gap-2">
+    <div role="radiogroup" aria-label={t.tip.label} className="grid grid-cols-4 gap-2">
       {OPTIONS.map((pct) => {
         const checked = value === pct;
         const amount =
@@ -36,7 +38,7 @@ export function TipToggle({ value, onChange, subtotalCents }: Props) {
             }`}
           >
             {pct === 0 ? (
-              <span className="text-lg font-semibold">No tip</span>
+              <span className="text-lg font-semibold">{t.tip.none}</span>
             ) : (
               <>
                 <span className="money text-2xl font-bold">{pct}%</span>

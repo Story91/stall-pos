@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import type { TipPct } from "@/components/sell/TipToggle";
+import { useT } from "@/lib/i18n/useT";
 import { computeTotals } from "@/lib/money";
 import { formatCents, MAX_PRICE_CENTS, parseDollars } from "@/lib/sell/format";
 import { canCharge, LOW_CONFIDENCE, type ItemRow } from "@/lib/sell/rows";
@@ -40,6 +41,7 @@ export function LineItemsEditor({
   onCharge,
   tip,
 }: Props) {
+  const t = useT();
   const [editingId, setEditingId] = useState<string | null>(null);
   const totals = totalsFor(rows, taxRate, tipPct);
   const ready = canCharge(rows);
@@ -50,10 +52,10 @@ export function LineItemsEditor({
   const remove = (id: string) => onRowsChange(rows.filter((row) => row.id !== id));
 
   return (
-    <section aria-label="Order" className="flex flex-col gap-5">
+    <section aria-label={t.ticket.label} className="flex flex-col gap-5">
       {rows.length === 0 ? (
         <p className="rounded-2xl border-2 border-dashed border-rule px-4 py-6 text-lg text-graphite">
-          The ticket is empty. Hold the mic and say the order again.
+          {t.ticket.empty}
         </p>
       ) : (
         <ul className="border-t-2 border-ink">
@@ -74,15 +76,15 @@ export function LineItemsEditor({
       {tip}
 
       <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-lg text-graphite">
-        <dt>Subtotal</dt>
+        <dt>{t.ticket.subtotal}</dt>
         <dd className="money text-right text-xl">{formatCents(totals.subtotalCents)}</dd>
-        <dt>Tax</dt>
+        <dt>{t.ticket.tax}</dt>
         <dd className="money text-right text-xl">
-          {taxRate === null ? "added at charge" : formatCents(totals.taxCents)}
+          {taxRate === null ? t.ticket.taxAtCharge : formatCents(totals.taxCents)}
         </dd>
         {totals.tipCents > 0 && (
           <>
-            <dt>Tip</dt>
+            <dt>{t.ticket.tip}</dt>
             <dd className="money text-right text-xl">{formatCents(totals.tipCents)}</dd>
           </>
         )}
@@ -101,15 +103,15 @@ export function LineItemsEditor({
               aria-hidden
               className="size-6 animate-spin rounded-full border-4 border-ink border-t-transparent motion-reduce:animate-none"
             />
-            <span className="text-2xl font-semibold">Creating PayPal invoice…</span>
+            <span className="text-2xl font-semibold">{t.ticket.creatingInvoice}</span>
           </>
         ) : (
-          <span className="money text-4xl font-bold">Charge {formatCents(totals.totalCents)}</span>
+          <span className="money text-4xl font-bold">{t.ticket.charge(formatCents(totals.totalCents))}</span>
         )}
       </button>
       {missingPrice && (
         <p className="-mt-2 text-center text-base font-medium">
-          Add a price to every item to charge.
+          {t.ticket.addPrice}
         </p>
       )}
     </section>
@@ -126,6 +128,7 @@ type RowProps = {
 };
 
 function Row({ row, open, onToggle, onFocusEditor, onChange, onRemove }: RowProps) {
+  const t = useT();
   const [dx, setDx] = useState(0);
   const start = useRef<{ x: number; y: number } | null>(null);
   const swiped = useRef(false);
@@ -165,7 +168,7 @@ function Row({ row, open, onToggle, onFocusEditor, onChange, onRemove }: RowProp
           aria-hidden
           className="absolute inset-0 flex items-center justify-end bg-ink pr-5 text-lg font-semibold text-paper"
         >
-          {dx <= -SWIPE_DELETE_PX ? "Let go to remove" : "Remove"}
+          {dx <= -SWIPE_DELETE_PX ? t.ticket.letGoToRemove : t.ticket.remove}
         </div>
       )}
       <div
@@ -176,7 +179,7 @@ function Row({ row, open, onToggle, onFocusEditor, onChange, onRemove }: RowProp
         <div className="flex items-stretch">
           <button
             type="button"
-            aria-label={`Edit ${row.name}`}
+            aria-label={t.ticket.edit(row.name)}
             aria-expanded={open}
             onClick={() => {
               if (swiped.current) return;
@@ -195,10 +198,10 @@ function Row({ row, open, onToggle, onFocusEditor, onChange, onRemove }: RowProp
               </span>
               {needsPrice && (
                 <span className="mt-1 self-start rounded-md bg-marigold px-2 py-0.5 text-base font-bold">
-                  Needs a price
+                  {t.ticket.needsPrice}
                 </span>
               )}
-              {unsure && <span className="text-sm text-graphite">Check this one</span>}
+              {unsure && <span className="text-sm text-graphite">{t.ticket.checkThis}</span>}
             </span>
             {!needsPrice && (
               <span className="money shrink-0 text-2xl font-semibold">
@@ -208,7 +211,7 @@ function Row({ row, open, onToggle, onFocusEditor, onChange, onRemove }: RowProp
           </button>
           <button
             type="button"
-            aria-label={`Remove ${row.name}`}
+            aria-label={t.ticket.removeItem(row.name)}
             onClick={onRemove}
             className="flex w-14 shrink-0 items-center justify-center text-2xl text-graphite active:text-ink"
           >
@@ -221,7 +224,7 @@ function Row({ row, open, onToggle, onFocusEditor, onChange, onRemove }: RowProp
             <div className="flex items-center rounded-xl border-2 border-ink">
               <button
                 type="button"
-                aria-label={`One less ${row.name}`}
+                aria-label={t.ticket.oneLess(row.name)}
                 disabled={row.qty <= 1}
                 onClick={() => onChange({ qty: row.qty - 1 })}
                 className="size-14 text-3xl font-bold disabled:text-rule"
@@ -233,7 +236,7 @@ function Row({ row, open, onToggle, onFocusEditor, onChange, onRemove }: RowProp
               </span>
               <button
                 type="button"
-                aria-label={`One more ${row.name}`}
+                aria-label={t.ticket.oneMore(row.name)}
                 disabled={row.qty >= MAX_QTY}
                 onClick={() => onChange({ qty: row.qty + 1 })}
                 className="size-14 text-3xl font-bold disabled:text-rule"
@@ -265,6 +268,7 @@ function PriceField({
   onFocus(): void;
   onPrice(cents: number | null): void;
 }) {
+  const t = useT();
   // Local text so a half-typed "4." is not reformatted under the owner's thumb.
   const [text, setText] = useState(cents === null ? "" : (cents / 100).toFixed(2));
   const tooHigh = Number(text.replace(/[$\s]/g, "").replace(",", ".")) * 100 > MAX_PRICE_CENTS;
@@ -275,7 +279,7 @@ function PriceField({
           $
         </span>
         <input
-          aria-label={`Price for ${name}`}
+          aria-label={t.ticket.priceFor(name)}
           inputMode="decimal"
           autoComplete="off"
           placeholder="0.00"
@@ -287,11 +291,11 @@ function PriceField({
           }}
           className="money w-full min-w-0 bg-transparent text-2xl font-semibold outline-none placeholder:text-rule"
         />
-        <span className="text-base text-graphite">each</span>
+        <span className="text-base text-graphite">{t.ticket.each}</span>
       </label>
       {tooHigh && (
         <p role="alert" className="text-base font-semibold">
-          A price can be at most {formatCents(MAX_PRICE_CENTS)}.
+          {t.ticket.priceMax(formatCents(MAX_PRICE_CENTS))}
         </p>
       )}
     </div>

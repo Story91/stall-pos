@@ -3,23 +3,33 @@
 
 export type CatalogSeed = {
   name: string;
-  alias: string;
+  /** What owners actually say for this item, in English, Spanish and Polish. */
+  aliases: string[];
   priceCents: number;
 };
 
 export const CATALOG: CatalogSeed[] = [
-  { name: "Taco al pastor", alias: "tacos de pastor", priceCents: 450 },
-  { name: "Taco de carnitas", alias: "tacos de carnitas", priceCents: 450 },
-  { name: "Taco de barbacoa", alias: "tacos de barbacoa", priceCents: 475 },
-  { name: "Quesadilla", alias: "quesadilla", priceCents: 650 },
-  { name: "Burrito", alias: "burrito", priceCents: 950 },
-  { name: "Torta", alias: "torta", priceCents: 850 },
-  { name: "Elote", alias: "elote", priceCents: 400 },
-  { name: "Chips and salsa", alias: "totopos", priceCents: 350 },
-  { name: "Agua fresca", alias: "agua fresca", priceCents: 300 },
-  { name: "Horchata", alias: "horchata", priceCents: 350 },
-  { name: "Mexican Coke", alias: "coca de vidrio", priceCents: 300 },
-  { name: "Churros", alias: "churros", priceCents: 400 },
+  { name: "Taco al pastor", aliases: ["tacos de pastor", "taco pastor", "pastor taco"], priceCents: 450 },
+  { name: "Taco de carnitas", aliases: ["tacos de carnitas", "carnitas taco", "taco carnitas"], priceCents: 450 },
+  { name: "Taco de barbacoa", aliases: ["tacos de barbacoa", "barbacoa taco", "taco barbacoa"], priceCents: 475 },
+  { name: "Quesadilla", aliases: ["kesadilla"], priceCents: 650 },
+  { name: "Burrito", aliases: ["burritos"], priceCents: 950 },
+  { name: "Torta", aliases: ["mexican sandwich", "tortas"], priceCents: 850 },
+  { name: "Elote", aliases: ["corn", "corn on the cob", "kukurydza", "kolba kukurydzy"], priceCents: 400 },
+  {
+    name: "Chips and salsa",
+    aliases: ["totopos", "totopos con salsa", "chips", "nachos", "chipsy", "chipsy z salsą"],
+    priceCents: 350,
+  },
+  { name: "Agua fresca", aliases: ["aguas frescas", "fruit water", "woda owocowa", "lemoniada"], priceCents: 300 },
+  { name: "Horchata", aliases: ["orczata", "horczata"], priceCents: 350 },
+  {
+    name: "Mexican Coke",
+    aliases: ["coca de vidrio", "coca", "coca cola", "coca-cola", "coke", "cola", "kola", "koka kola"],
+    priceCents: 300,
+  },
+  { name: "Churros", aliases: ["churro", "czurros", "czuros"], priceCents: 400 },
+  { name: "Bottled water", aliases: ["water", "agua", "botella de agua", "woda", "butelka wody"], priceCents: 200 },
 ];
 
 export type SaleCombo = {

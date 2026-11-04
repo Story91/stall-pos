@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed } from "next/font/google";
+import { HtmlLang } from "@/lib/i18n/useT";
 import "./globals.css";
 
 // Barlow takes its shapes from California highway signs: built to be read fast, outdoors.
@@ -32,7 +33,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${barlow.variable} ${barlowCondensed.variable} antialiased`}>
-      <body>{children}</body>
+      <body>
+        <HtmlLang />
+        {children}
+      </body>
     </html>
   );
 }

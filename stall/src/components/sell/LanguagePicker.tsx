@@ -1,6 +1,7 @@
 "use client";
 
 import { LANGUAGES, type Language } from "@/lib/parse/schema";
+import { useT } from "@/lib/i18n/useT";
 
 const NAMES: Record<Language, string> = { en: "English", es: "Español", pl: "Polski" };
 
@@ -10,10 +11,11 @@ type Props = {
   disabled?: boolean;
 };
 
-/** The language the vendor speaks; also the language "Paid" is spoken in. */
+/** The owner's language for the whole app: screens, voice, the close summary, and the spoken "Paid". */
 export function LanguagePicker({ value, onChange, disabled }: Props) {
+  const t = useT();
   return (
-    <div role="radiogroup" aria-label="Language you speak" className="flex gap-1.5">
+    <div role="radiogroup" aria-label={t.language.pickerLabel} className="flex gap-1.5">
       {LANGUAGES.map((language) => {
         const checked = language === value;
         return (

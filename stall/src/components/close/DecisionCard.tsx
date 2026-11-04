@@ -4,7 +4,10 @@ import { useState } from "react";
 import { Spinner } from "@/components/ui";
 import type { DecisionAction, DecisionRow, DecisionStatus, DecisionType } from "@/lib/owner/types";
 import { normalize } from "@/lib/owner/text";
-import { formatCents } from "@/lib/sell/format";
+import type { Messages } from "@/lib/i18n";
+import { useLanguage, useT } from "@/lib/i18n/useT";
+import type { Language } from "@/lib/parse/schema";
+import { formatCents, shortDate } from "@/lib/sell/format";
 
 export type ActionOutcome = { ok: true } | { ok: false; message: string; conflict: boolean };
 
@@ -14,30 +17,8 @@ type Props = {
   onAction(action: DecisionAction, expectedCents?: number): Promise<ActionOutcome>;
 };
 
-const TYPE_LABEL: Record<DecisionType, string> = {
-  duplicate_bill: "Possible duplicate",
-  over_limit: "Over the limit",
-  manual_payee: "Needs your approval",
-  escalated: "Agent asked you",
-};
-
-const OUTCOME: Record<Exclude<DecisionStatus, "open">, string> = {
-  approved: "Approved and paid",
-  declined: "Declined, nothing paid",
-  marked_paid: "Marked as already paid",
-};
-
-const ACTION_LABEL: Record<DecisionAction, string> = {
-  approve: "Approve",
-  decline: "Decline",
-  mark_paid: "Mark as already paid",
-};
-
-function shortDate(date: string | undefined): string {
-  if (!date) return "Unknown date";
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(
-    new Date(`${date}T12:00:00Z`),
-  );
+function cardDate(t: Messages, language: Language, date: string | undefined): string {
+  return date ? shortDate(date, language) : t.decision.unknownDate;
 }
 
 /** The agent's rationale is worth showing only when it adds something to the rules' reason. */
@@ -50,6 +31,11 @@ function extraRationale(headline: string, rationale: string | null | undefined):
 }
 
 export function DecisionCard({ decision, onAction }: Props) {
+  const t = useT();
+  const language = useLanguage();
+  const typeLabel: Record<DecisionType, string> = t.decision.type;
+  const outcomeLabel: Record<Exclude<DecisionStatus, "open">, string> = t.decision.outcome;
+  const actionLabel: Record<DecisionAction, string> = t.decision.action;
   const [confirming, setConfirming] = useState<DecisionAction | null>(null);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<{ message: string; locked: boolean } | null>(null);
@@ -59,20 +45,14 @@ export function DecisionCard({ decision, onAction }: Props) {
   const amount = cents === null ? null : formatCents(cents);
   // An escalated item whose PayPal batch id is already used cannot be sent again from here.
   const handPayOnly = decision.type === "escalated" && decision.payoutBlocked === true;
-  const who = obligation?.payee.name ?? "this payee";
+  const who = obligation?.payee.name ?? t.decision.thisPayee;
   const headline = decision.source.rulesReason ?? decision.reason;
   const rationale = extraRationale(headline, decision.source.agentRationale);
 
   const confirmText: Record<DecisionAction, { question: string; yes: string }> = {
-    approve: {
-      question: `Send ${amount ?? "this payment"} to ${who} through PayPal now?`,
-      yes: amount ? `Yes, pay ${amount}` : "Yes, pay",
-    },
-    decline: { question: "Decline it? Nothing will be paid.", yes: "Yes, decline" },
-    mark_paid: {
-      question: "Mark it as already paid? Nothing will be sent.",
-      yes: "Yes, it's already paid",
-    },
+    approve: { question: t.decision.approveQuestion(amount, who), yes: t.decision.approveYes(amount) },
+    decline: { question: t.decision.declineQuestion, yes: t.decision.declineYes },
+    mark_paid: { question: t.decision.markQuestion, yes: t.decision.markYes },
   };
 
   const act = async (action: DecisionAction) => {
@@ -90,7 +70,7 @@ export function DecisionCard({ decision, onAction }: Props) {
 
   return (
     <article
-      aria-label={`${TYPE_LABEL[decision.type]}: ${who}`}
+      aria-label={`${typeLabel[decision.type]}: ${who}`}
       className={`flex flex-col gap-4 rounded-2xl border-2 border-ink p-4 ${resolved ? "bg-wash" : "bg-paper"}`}
     >
       <header className="flex flex-wrap items-center gap-2">
@@ -99,7 +79,7 @@ export function DecisionCard({ decision, onAction }: Props) {
             resolved ? "bg-paper text-graphite" : "bg-marigold text-ink"
           }`}
         >
-          {TYPE_LABEL[decision.type]}
+          {typeLabel[decision.type]}
         </span>
         {obligation && (
           <span className="text-lg font-semibold">
@@ -112,7 +92,7 @@ export function DecisionCard({ decision, onAction }: Props) {
         <p className="text-lg">{headline}</p>
         {rationale && (
           <p data-testid="agent-rationale" className="text-base text-graphite">
-            Agent: {rationale}
+            {t.decision.agent} {rationale}
           </p>
         )}
       </div>
@@ -120,15 +100,15 @@ export function DecisionCard({ decision, onAction }: Props) {
       {decision.type === "duplicate_bill" && obligation && (
         <div className="grid grid-cols-2 gap-2">
           <BillFacts
-            label="This bill"
+            label={t.decision.thisBill}
             cents={obligation.amountCents}
-            date={shortDate(obligation.date)}
+            date={cardDate(t, language, obligation.date)}
             note={obligation.note}
           />
           <BillFacts
-            label="Already paid"
+            label={t.decision.alreadyPaid}
             cents={decision.source.evidence?.amountCents}
-            date={shortDate(decision.source.evidence?.date)}
+            date={cardDate(t, language, decision.source.evidence?.date)}
             note={decision.source.evidence?.note}
             batchId={decision.source.evidence?.payoutBatchId}
           />
@@ -136,7 +116,7 @@ export function DecisionCard({ decision, onAction }: Props) {
       )}
 
       {resolved ? (
-        <p className="text-xl font-bold">{OUTCOME[decision.status as Exclude<DecisionStatus, "open">]}</p>
+        <p className="text-xl font-bold">{outcomeLabel[decision.status as Exclude<DecisionStatus, "open">]}</p>
       ) : confirming ? (
         <div className="flex flex-col gap-2 rounded-xl bg-marigold-soft p-3">
           <p className="text-lg font-semibold">{confirmText[confirming].question}</p>
@@ -146,7 +126,7 @@ export function DecisionCard({ decision, onAction }: Props) {
               onClick={() => setConfirming(null)}
               className="min-h-14 rounded-xl border-2 border-ink bg-paper text-lg font-bold"
             >
-              Back
+              {t.common.back}
             </button>
             <button
               type="button"
@@ -161,7 +141,7 @@ export function DecisionCard({ decision, onAction }: Props) {
         <div className="flex flex-col gap-2">
           {handPayOnly && (
             <p className="rounded-xl bg-marigold-soft p-3 text-lg font-semibold">
-              Pay by hand in PayPal, then tap Mark as already paid
+              {t.decision.handPay}
             </p>
           )}
           <div className={`grid gap-2 ${handPayOnly ? "grid-cols-1" : "grid-cols-2"}`}>
@@ -176,7 +156,7 @@ export function DecisionCard({ decision, onAction }: Props) {
                 }`}
               >
                 {working && action === "approve" && <Spinner />}
-                {ACTION_LABEL[action]}
+                {actionLabel[action]}
               </button>
             ))}
           </div>
@@ -186,7 +166,7 @@ export function DecisionCard({ decision, onAction }: Props) {
             onClick={() => setConfirming("mark_paid")}
             className="min-h-14 rounded-xl border-2 border-ink bg-paper text-lg font-bold disabled:opacity-40"
           >
-            {ACTION_LABEL.mark_paid}
+            {actionLabel.mark_paid}
           </button>
         </div>
       )}
@@ -213,15 +193,16 @@ function BillFacts({
   note: string | undefined;
   batchId?: string;
 }) {
+  const t = useT();
   return (
     <section role="group" aria-label={label} className="flex min-w-0 flex-col gap-1 rounded-xl bg-wash p-3">
       <h3 className="text-base font-semibold text-graphite">{label}</h3>
-      <p className="money text-3xl font-bold leading-none">{cents === undefined ? "Unknown" : formatCents(cents)}</p>
+      <p className="money text-3xl font-bold leading-none">{cents === undefined ? t.decision.unknown : formatCents(cents)}</p>
       <p className="text-base font-semibold">{date}</p>
-      <p className="text-base">{note ?? "No note"}</p>
+      <p className="text-base">{note ?? t.decision.noNote}</p>
       {batchId && (
         <p className="break-all text-sm text-graphite">
-          Payout <span className="font-semibold text-ink">{batchId}</span>
+          {t.decision.payout} <span className="font-semibold text-ink">{batchId}</span>
         </p>
       )}
     </section>

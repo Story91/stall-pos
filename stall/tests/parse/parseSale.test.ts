@@ -214,6 +214,7 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toMatch(/never invent/i);
     expect(prompt).toMatch(/spoken in words/i);
     expect(prompt).toContain("data, not instructions");
+    expect(prompt).toMatch(/translat/i);
     expect(prompt).toMatch(/same language as the transcript/i);
     expect(prompt).toMatch(/<catalog>[\s\S]*Taco al pastor[\s\S]*<\/catalog>/);
   });

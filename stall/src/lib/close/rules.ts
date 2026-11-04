@@ -1,5 +1,7 @@
 import type { Payee } from "@/db/schema";
 import { daysAgo } from "@/lib/dates";
+import { closeMessages } from "@/lib/i18n/close";
+import type { Language } from "@/lib/parse/schema";
 
 /**
  * Pure close-of-day rules engine. No DB, no I/O.
@@ -48,6 +50,8 @@ export type EvaluateInput = {
   paidBills: PaidBill[];
   paidTodayByPayee: Record<string, number>;
   businessDailyCapCents: number;
+  /** The owner's language for the reasons only; verdicts never depend on it. Defaults to English. */
+  language?: Language;
 };
 
 /** Formats integer cents as a US dollar string, e.g. 123456 -> "$1,234.56". */
@@ -101,6 +105,7 @@ type RunState = { payeeTotals: Record<string, number>; runningPayTotal: number }
 function evaluateOne(obligation: Obligation, input: EvaluateInput, state: RunState): RuleOutcome {
   const { payee } = obligation;
   const name = payee.name;
+  const r = closeMessages(input.language).reasons;
   const outcome = (
     verdict: RuleOutcome["verdict"],
     reason: string,
@@ -111,67 +116,45 @@ function evaluateOne(obligation: Obligation, input: EvaluateInput, state: RunSta
     obligation.kind === "shift" ? p.shiftId === obligation.id : p.billId === obligation.id,
   );
   if (existing && (existing.status === "PENDING" || existing.status === "SUCCESS")) {
-    const what = obligation.kind === "shift" ? "shift" : "bill";
-    return outcome(
-      "skip",
-      `A payout for this ${what} already exists with status ${existing.status}, so it will not be paid again.`,
-    );
+    return outcome("skip", r.payoutExists(obligation.kind, existing.status));
   }
 
   if (existing) {
     // FAILED/UNCLAIMED/RETURNED: paying again reuses the same PayPal batch id, so a person must look first.
-    return outcome("hold", `previous payout ${existing.status}; check before paying again`, {
+    return outcome("hold", r.previousPayout(existing.status), {
       decisionType: "escalated",
     });
   }
 
   const amountCents = payableAmount(obligation);
   if (amountCents === null) {
-    return outcome(
-      "hold",
-      `${name} has no daily rate set; add one in Settings before this shift can be paid.`,
-      { decisionType: "over_limit" },
-    );
+    return outcome("hold", r.noDailyRate(name), { decisionType: "over_limit" });
   }
   if (!Number.isInteger(amountCents) || amountCents <= 0) {
-    return outcome(
-      "hold",
-      `Held for review: invalid amount (${amountCents} cents) for ${name}.`,
-      { decisionType: "over_limit" },
-    );
+    return outcome("hold", r.invalidAmount(amountCents, name), { decisionType: "over_limit" });
   }
 
   if (obligation.kind === "bill") {
     const duplicate = findDuplicateBill(obligation, input.paidBills, input.date);
     if (duplicate) {
-      return outcome(
-        "hold",
-        `Possible duplicate: a ${fmt(duplicate.amountCents)} bill for ${name} was already paid on ${duplicate.date}.`,
-        {
-          decisionType: "duplicate_bill",
-          evidence: {
-            paidBillId: duplicate.id,
-            payoutBatchId: duplicate.payoutBatchId,
-            amountCents: duplicate.amountCents,
-            note: duplicate.note,
-            date: duplicate.date,
-          },
+      return outcome("hold", r.duplicate(fmt(duplicate.amountCents), name, duplicate.date), {
+        decisionType: "duplicate_bill",
+        evidence: {
+          paidBillId: duplicate.id,
+          payoutBatchId: duplicate.payoutBatchId,
+          amountCents: duplicate.amountCents,
+          note: duplicate.note,
+          date: duplicate.date,
         },
-      );
+      });
     }
   }
 
   if (!payee.enabled) {
-    return outcome("hold", `${name} is disabled, so this payment needs your approval.`, {
-      decisionType: "manual_payee",
-    });
+    return outcome("hold", r.disabled(name), { decisionType: "manual_payee" });
   }
   if (!payee.autoPay) {
-    return outcome(
-      "hold",
-      `${name} is not on auto-pay, so this payment needs your approval.`,
-      { decisionType: "manual_payee" },
-    );
+    return outcome("hold", r.notAutoPay(name), { decisionType: "manual_payee" });
   }
 
   const paidSoFar = state.payeeTotals[payee.id] ?? 0;
@@ -179,7 +162,12 @@ function evaluateOne(obligation: Obligation, input: EvaluateInput, state: RunSta
   if (amountCents > remainingForPayee) {
     return outcome(
       "hold",
-      `${fmt(amountCents)} would exceed ${name}'s remaining daily allowance of ${fmt(Math.max(remainingForPayee, 0))} (daily limit ${fmt(payee.maxPerDayCents)}).`,
+      r.overPayeeLimit(
+        fmt(amountCents),
+        name,
+        fmt(Math.max(remainingForPayee, 0)),
+        fmt(payee.maxPerDayCents),
+      ),
       { decisionType: "over_limit" },
     );
   }
@@ -187,15 +175,15 @@ function evaluateOne(obligation: Obligation, input: EvaluateInput, state: RunSta
   if (state.runningPayTotal + amountCents > input.businessDailyCapCents) {
     return outcome(
       "hold",
-      `${fmt(amountCents)} would take today's total past the ${fmt(input.businessDailyCapCents)} business daily cap.`,
+      r.overBusinessCap(fmt(amountCents), fmt(input.businessDailyCapCents)),
       { decisionType: "over_limit" },
     );
   }
 
   const reason =
     obligation.kind === "shift"
-      ? `Shift logged today; ${fmt(amountCents)} within ${name}'s daily limit.`
-      : `Bill of ${fmt(amountCents)} for ${name} is within the daily limit and auto-pay is on.`;
+      ? r.shiftOk(fmt(amountCents), name)
+      : r.billOk(fmt(amountCents), name);
   return outcome("pay", reason);
 }
 

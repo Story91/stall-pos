@@ -55,7 +55,7 @@ export async function seed(
       CATALOG.map((item) => ({
         businessId,
         name: item.name,
-        aliases: [item.alias],
+        aliases: item.aliases,
         defaultPriceCents: item.priceCents,
         taxable: true,
         sightings: 0,
@@ -107,7 +107,7 @@ export async function seed(
       batchId: obligationBatchId(businessId, "bill", paidBill!.id),
       amountCents: 24000,
       status: "SUCCESS",
-      rationale: "Seed: paid tortilla delivery",
+      rationale: "Tortillas",
     });
     await tx.insert(bills).values({
       businessId,

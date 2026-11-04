@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Spinner } from "@/components/ui";
 import { safeNext } from "@/lib/access";
+import { useT } from "@/lib/i18n/useT";
 
 const MIN = 4;
 const MAX = 6;
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 export default function PinPage() {
+  const t = useT();
   const [digits, setDigits] = useState("");
   const [state, setState] = useState<"idle" | "checking" | "wrong" | "offline" | "locked">("idle");
   const [lockedFor, setLockedFor] = useState(0);
@@ -85,7 +87,7 @@ export default function PinPage() {
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-8 px-4 py-8">
       <header className="text-center">
         <p className="money text-5xl font-extrabold leading-none">Stall</p>
-        <h1 className="mt-2 text-2xl font-semibold">Enter your owner PIN</h1>
+        <h1 className="mt-2 text-2xl font-semibold">{t.pin.title}</h1>
       </header>
 
       <div className="flex flex-col items-center gap-3">
@@ -100,13 +102,13 @@ export default function PinPage() {
         <p role="status" className="flex min-h-8 items-center gap-2 text-xl font-bold">
           {state === "checking" && (
             <>
-              <Spinner /> Checking
+              <Spinner /> {t.pin.checking}
             </>
           )}
-          {state === "wrong" && "Wrong PIN"}
-          {state === "offline" && "No connection. Try again."}
-          {state === "locked" && `Too many tries. Wait ${lockedFor} seconds.`}
-          {state === "idle" && <span className="sr-only">{digits.length} digits entered</span>}
+          {state === "wrong" && t.pin.wrong}
+          {state === "offline" && t.pin.offline}
+          {state === "locked" && t.pin.locked(lockedFor)}
+          {state === "idle" && <span className="sr-only">{t.pin.digits(digits.length)}</span>}
         </p>
       </div>
 
@@ -120,12 +122,12 @@ export default function PinPage() {
           disabled={digits.length < MIN || state === "checking"}
           className="min-h-20 rounded-2xl bg-marigold text-xl font-bold text-ink disabled:opacity-40"
         >
-          Unlock
+          {t.pin.unlock}
         </button>
         <Key label="0" onPress={() => press("0")} />
         <button
           type="button"
-          aria-label="Delete last digit"
+          aria-label={t.pin.deleteDigit}
           onClick={() => press("back")}
           className="flex min-h-20 items-center justify-center rounded-2xl border-2 border-ink text-ink active:bg-wash"
         >

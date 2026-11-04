@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { Spinner } from "@/components/ui";
+import { useT } from "@/lib/i18n/useT";
 
 type Props = { onReset(): Promise<{ ok: true } | { ok: false; message: string }> };
 
 /** Puts the demo back to its starting day. Two taps: the second one wipes data. */
 export function ResetDemo({ onReset }: Props) {
+  const t = useT();
   const [stage, setStage] = useState<"idle" | "confirm" | "working">("idle");
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -17,34 +19,31 @@ export function ResetDemo({ onReset }: Props) {
     setStage("idle");
     setResult(
       outcome.ok
-        ? { ok: true, text: "Demo data is back to the start of the day." }
+        ? { ok: true, text: t.resetDemo.done }
         : { ok: false, text: outcome.message },
     );
   };
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-lg text-graphite">
-        Deletes every sale, shift, bill, payout and decision, then loads the demo day again. Payouts
-        already sent in the PayPal sandbox stay there.
-      </p>
+      <p className="text-lg text-graphite">{t.resetDemo.description}</p>
       {stage === "confirm" ? (
         <div className="flex flex-col gap-2 rounded-2xl bg-marigold-soft p-3">
-          <p className="text-lg font-semibold">Erase everything and start the demo over?</p>
+          <p className="text-lg font-semibold">{t.resetDemo.confirm}</p>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setStage("idle")}
               className="min-h-14 rounded-xl border-2 border-ink bg-paper text-lg font-bold"
             >
-              Back
+              {t.common.back}
             </button>
             <button
               type="button"
               onClick={() => void reset()}
               className="min-h-14 rounded-xl bg-ink text-lg font-bold text-paper"
             >
-              Yes, reset
+              {t.resetDemo.yes}
             </button>
           </div>
         </div>
@@ -57,7 +56,7 @@ export function ResetDemo({ onReset }: Props) {
         >
           <span className="flex h-full w-full items-center justify-center gap-2 rounded-xl bg-paper text-xl font-extrabold">
             {stage === "working" && <Spinner />}
-            {stage === "working" ? "Resetting…" : "Reset demo data"}
+            {stage === "working" ? t.resetDemo.resetting : t.resetDemo.button}
           </span>
         </button>
       )}

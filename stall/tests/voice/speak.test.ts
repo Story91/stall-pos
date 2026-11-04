@@ -86,4 +86,43 @@ describe("speech output", () => {
     expect(utterance.lang).toBe("es-US");
     expect(utterance.voice).toBeNull();
   });
+
+  it("prefers the exact locale, and accepts Android-style tags", () => {
+    synth.getVoices.mockReturnValue([
+      { name: "Spain", lang: "es-ES" },
+      { name: "US Spanish", lang: "es_US" },
+    ]);
+    speak("Pagado", "es");
+    expect((firstUtterance().voice as { name: string }).name).toBe("US Spanish");
+  });
+
+  it("waits for voices that load late instead of falling back to the default voice", () => {
+    vi.useFakeTimers();
+    const listeners: Array<() => void> = [];
+    synth.getVoices.mockReturnValue([]);
+    Object.assign(synth, {
+      addEventListener: vi.fn((_: string, fn: () => void) => listeners.push(fn)),
+      removeEventListener: vi.fn(),
+    });
+
+    speak("Zapłacono", "pl");
+    expect(synth.speak).not.toHaveBeenCalled();
+
+    synth.getVoices.mockReturnValue(voices);
+    listeners.forEach((fn) => fn());
+    expect(firstUtterance().voice).toBe(voices[1]);
+    expect(firstUtterance().lang).toBe("pl-PL");
+    vi.useRealTimers();
+  });
+
+  it("still speaks if the voice list never arrives", () => {
+    vi.useFakeTimers();
+    synth.getVoices.mockReturnValue([]);
+    Object.assign(synth, { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+
+    speak("Paid", "en");
+    vi.advanceTimersByTime(1500);
+    expect(firstUtterance().lang).toBe("en-US");
+    vi.useRealTimers();
+  });
 });

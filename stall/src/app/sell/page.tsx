@@ -9,17 +9,13 @@ import { QrScreen } from "@/components/sell/QrScreen";
 import { TipToggle } from "@/components/sell/TipToggle";
 import { useSaleStatus } from "@/hooks/useSaleStatus";
 import { useSellFlow, type Notice, type QrStage } from "@/hooks/useSellFlow";
-import type { Language } from "@/lib/parse/schema";
+import type { Messages } from "@/lib/i18n";
+import { useT } from "@/lib/i18n/useT";
 import { computeTotals } from "@/lib/money";
-
-const EXAMPLES: Record<Language, string> = {
-  en: "Two tacos al pastor and an agua fresca",
-  es: "Dos tacos al pastor y un agua fresca",
-  pl: "Dwa tacos al pastor i agua fresca",
-};
 
 export default function SellPage() {
   const flow = useSellFlow();
+  const t = useT();
   const hasTicket = flow.rows.length > 0;
 
   return (
@@ -55,7 +51,7 @@ export default function SellPage() {
               <>
                 {flow.transcript && (
                   <p className="text-lg text-graphite">
-                    Heard <q className="text-ink">{flow.transcript}</q>
+                    {t.sell.heard} <q className="text-ink">{flow.transcript}</q>
                   </p>
                 )}
                 <LineItemsEditor
@@ -80,12 +76,12 @@ export default function SellPage() {
                   state={flow.mic}
                   supported={flow.micSupported}
                   size="hero"
-                  idleLabel="Hold to talk"
+                  idleLabel={t.sell.holdToTalk}
                   onPressStart={flow.pressStart}
                   onPressEnd={flow.pressEnd}
                 />
                 <p className="max-w-xs text-xl text-graphite">
-                  Say the order, like <q className="text-ink">{EXAMPLES[flow.language]}</q>
+                  {t.sell.sayLike} <q className="text-ink">{t.sell.example}</q>
                 </p>
               </div>
             )}
@@ -97,7 +93,7 @@ export default function SellPage() {
                 state={flow.mic}
                 supported={flow.micSupported}
                 size="compact"
-                idleLabel="Say again: hold to talk"
+                idleLabel={t.sell.sayAgain}
                 onPressStart={flow.pressStart}
                 onPressEnd={flow.pressEnd}
               />
@@ -105,7 +101,7 @@ export default function SellPage() {
 
             <TypedOrder
               disabled={flow.parsing || flow.charging}
-              placeholder={EXAMPLES[flow.language]}
+              placeholder={t.sell.example}
               onSubmit={flow.submitText}
             />
           </>
@@ -150,10 +146,11 @@ function PaymentStage({
 }
 
 function TicketSkeleton({ transcript }: { transcript: string }) {
+  const t = useT();
   return (
-    <section aria-label="Reading the order" aria-busy className="flex flex-col gap-4">
+    <section aria-label={t.sell.readingLabel} aria-busy className="flex flex-col gap-4">
       <p className="text-lg text-graphite">
-        Reading <q className="text-ink">{transcript}</q>
+        {t.sell.reading} <q className="text-ink">{transcript}</q>
       </p>
       <ul aria-hidden className="border-t-2 border-ink">
         {[70, 55, 40].map((width) => (
@@ -168,43 +165,41 @@ function TicketSkeleton({ transcript }: { transcript: string }) {
   );
 }
 
-const RETRY_TEXT: Record<Extract<Notice, { kind: "retry" }>["cause"], string> = {
-  paypal: "PayPal is not responding, try again.",
-  network: "No connection. Check your signal and try again.",
-  server: "Something went wrong on the server. Try again.",
-  conflict: "Something went wrong on the server. Try again.",
-  invalid: "The order was rejected. Check each item's quantity and price, then try again.",
-};
+function retryText(t: Messages, cause: Extract<Notice, { kind: "retry" }>["cause"]): string {
+  if (cause === "paypal") return t.sell.retry.paypal;
+  if (cause === "network") return t.common.noConnection;
+  if (cause === "invalid") return t.sell.retry.invalid;
+  return t.common.serverError;
+}
 
 function NoticeBox({ notice, onRetry }: { notice: Notice; onRetry(): void }) {
+  const t = useT();
   return (
     <div role="alert" className="flex flex-col gap-3 rounded-2xl bg-ink p-4 text-paper">
       {notice.kind === "mic-denied" && (
-        <p className="text-lg">
-          The microphone is blocked. Type the order in the box below, or allow the microphone for
-          this site in your browser settings.
-        </p>
+        <p className="text-lg">{t.sell.micDenied}</p>
       )}
       {notice.kind === "no-speech" && (
-        <p className="text-lg">Didn&apos;t hear anything. Hold the button the whole time you talk.</p>
+        <p className="text-lg">{t.sell.noSpeech}</p>
       )}
       {notice.kind === "no-order" && (
         <>
-          <p className="text-xl font-semibold">I didn&apos;t catch an order.</p>
+          <p className="text-xl font-semibold">{t.sell.noOrder}</p>
           <p className="text-lg">
-            Heard <q className="text-marigold">{notice.transcript}</q>. Say it again or type it below.
+            {t.sell.heard} <q className="text-marigold">{notice.transcript}</q>
+            {t.sell.noOrderAfter}
           </p>
         </>
       )}
       {notice.kind === "retry" && (
         <>
-          <p className="text-xl font-semibold">{RETRY_TEXT[notice.cause]}</p>
+          <p className="text-xl font-semibold">{retryText(t, notice.cause)}</p>
           <button
             type="button"
             onClick={onRetry}
             className="min-h-14 rounded-xl bg-marigold px-4 text-xl font-bold text-ink"
           >
-            Try again
+            {t.common.tryAgain}
           </button>
         </>
       )}
@@ -221,6 +216,7 @@ function TypedOrder({
   placeholder: string;
   onSubmit(text: string): void;
 }) {
+  const t = useT();
   const [text, setText] = useState("");
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -231,7 +227,7 @@ function TypedOrder({
   return (
     <form onSubmit={submit} className="mt-auto flex flex-col gap-2">
       <label htmlFor="typed-order" className="text-base font-medium text-graphite">
-        Or type the order
+        {t.sell.typeLabel}
       </label>
       <div className="flex gap-2">
         <input
@@ -248,7 +244,7 @@ function TypedOrder({
           disabled={disabled || !text.trim()}
           className="min-h-14 rounded-xl bg-ink px-5 text-lg font-bold text-paper disabled:opacity-40"
         >
-          Read order
+          {t.sell.readOrder}
         </button>
       </div>
     </form>

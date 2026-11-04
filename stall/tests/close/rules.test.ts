@@ -95,7 +95,7 @@ describe("evaluateObligations", () => {
       note: "tortillas",
       date: "2026-11-02",
     });
-    expect(rosaOutcome?.reason).toContain("2026-11-02");
+    expect(rosaOutcome?.reason).toContain("November 2");
     expect(rosaOutcome?.reason).toContain("$240.00");
   });
 
