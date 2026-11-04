@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // No dev-mode badge: it overlaps the bottom nav in screenshots and screen recordings.
+  devIndicators: false,
   turbopack: {
     rules: {
       "*.css": {
