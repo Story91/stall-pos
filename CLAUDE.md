@@ -28,7 +28,7 @@ Deadline: **Nov 12, 2026, 12:00 PT (21:00 Warsaw)**. Nine days from Nov 3. Every
 - **PayPal**: `@paypal/agent-toolkit` (`/ai-sdk` subpath) for the 43 built-in tools **plus our own tools** for anything it lacks (Payouts, webhooks, platform fees) written against REST with a tiny typed client (`lib/paypal/client.ts`): token cache + refresh, `PayPal-Request-Id` on every POST, zod-validated responses.
 - **DB**: Postgres on Neon via Drizzle (`pg` driver); PGlite in tests. Money as integer cents.
 - **UI data**: AG Grid (Community; Enterprise trial if a feature needs it) — target the sponsor prize.
-- **Hosting**: Render (web service + Postgres + cron). Vercel is a fallback for the frontend only.
+- **Hosting**: Vercel (user decision 2026-11-04): app in `stall/` as root directory, Neon Postgres via Vercel Marketplace, Vercel Cron for the 20:00 close. Render dropped.
 - **Tests**: Vitest for units (PayPal client with recorded fixtures, policy/limits logic, AI output parsers). One Playwright smoke test for the happy path if time allows.
 - **MCP**: if the idea exposes an MCP server, use `@modelcontextprotocol/sdk`, stdio + streamable HTTP.
 
