@@ -6,6 +6,14 @@ Built on **PayPal Invoicing, Payouts and Webhooks** (sandbox only), Claude via t
 
 Demo business: **La Esquina**, a taco truck in Austin, TX.
 
+## Why it matters
+
+- **The sellers:** New York City alone has about 23,000 street vendors; 96% are immigrants and 55% speak little or no English ([Brooklyn Reader, on an Immigration Research Initiative report](https://www.bkreader.com/business-innovation/almost-all-street-vendors-are-immigrants-facing-permit-issues-language-barriers-9536951)). Nationally, more than 1 in 5 immigrant entrepreneurs has limited English ([American Immigration Council](https://www.americanimmigrationcouncil.org/report/covid19-immigrant-entrepreneurs-languages/)).
+- **The buyers stopped carrying cash:** cash was 14% of US payments in 2024 ([Federal Reserve, 2025 Diary of Consumer Payment Choice](https://www.frbservices.org/news/research/2025-findings-from-the-diary-of-consumer-payment-choice)).
+- **Not everyone has a bank account:** 4.2% of US households are unbanked, 9.5% of Hispanic households ([FDIC 2023 survey](https://fdic.gov/household-survey/2023-fdic-national-survey-unbanked-and-underbanked-households-executive-summary)). A PayPal invoice can be paid with a card as a guest, and helpers are paid to a PayPal account, not a bank.
+
+Stall is for that owner: **sell and settle, face to face, in your language.** Voice-to-invoice tools exist; Stall also closes the day, paying the helper and the supplier inside hard limits and stopping on anything that looks wrong.
+
 ## 90-second judge path
 
 Hosted demo: **<https://stall-ashen.vercel.app>** (PayPal sandbox, no real money). Owner PIN: **`1234`**.
