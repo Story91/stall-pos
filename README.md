@@ -27,6 +27,7 @@ No login is needed to pay: PayPal's sandbox invoice page accepts **Debit or Cred
 5. Open **Today**. Today's sales, tax and tips are listed, and two obligations are already logged: Maria's shift and a tortillas bill.
 6. Tap **Close the day** (you land on **Close**).
    - Maria's $120 shift is paid through PayPal Payouts, with a one-sentence reason.
+   - The **Money check with PayPal** card compares the day's ledger with PayPal's own transaction report. PayPal can take up to about 3 hours to list a new payment, so fresh items show as "not in PayPal's report yet" until they appear.
    - The tortillas bill is **held**: it looks like a bill paid two days ago. The decision card shows both bills.
 7. Tap **Mark as already paid** on the held bill (nothing is sent), then **Run close again**. Nothing is paid twice.
 8. Open **History** and type `cash sales over $20 this week` (or hold the mic and ask). Claude turns the question into a filter on the AG Grid ledger; the answer line and the totals row are computed by code from the rows shown.
@@ -105,6 +106,7 @@ Out of scope: card reader, receipt printing, inventory, tables, multi-location, 
 | Pay a logged shift or bill | `POST /v1/payments/payouts` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Payout batch status | `GET /v1/payments/payouts/{batch_id}` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Signature check on every webhook | `POST /v1/notifications/verify-webhook-signature` | [`webhooks.ts`](stall/src/lib/paypal/webhooks.ts) |
+| **Money check:** the day's ledger (PayPal sales in, payouts out) matched item by item against what PayPal itself recorded; gaps are listed, outside activity is shown separately | `GET /v1/reporting/transactions` | [`reporting.ts`](stall/src/lib/paypal/reporting.ts), [`reconcile.ts`](stall/src/lib/close/reconcile.ts) |
 | Close agent checks which of today's invoices are still unpaid (read-only, **PayPal Agent Toolkit** `list_invoices`, adapted to AI SDK 7) | `GET /v2/invoicing/invoices` | [`toolkit.ts`](stall/src/lib/paypal/toolkit.ts), [`agent.ts`](stall/src/lib/close/agent.ts) |
 | Token cache, `PayPal-Request-Id` on every POST, zod-validated responses | `POST /v1/oauth2/token` | [`client.ts`](stall/src/lib/paypal/client.ts), [`schemas.ts`](stall/src/lib/paypal/schemas.ts) |
 

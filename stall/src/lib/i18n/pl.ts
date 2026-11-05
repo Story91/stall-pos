@@ -201,6 +201,26 @@ export const pl: Messages = {
       `Wypłacono: ${paid}, czeka na ciebie: ${held}.${failed > 0 ? ` Nie wysłano: ${failed}, spróbuj ponownie.` : ""}`,
     running: "Zamykam dzień. Agent sprawdza każdą zmianę i każdy rachunek względem twoich limitów.",
   },
+  moneyCheck: {
+    title: "Uzgodnienie z PayPal",
+    intro: "Zapisy Stall z tego dnia porównane z raportem transakcji PayPal.",
+    checking: "Pytam PayPal…",
+    again: "Sprawdź ponownie",
+    moneyIn: "Wpływy",
+    moneyOut: "Wypłaty",
+    stall: "Stall",
+    paypal: "PayPal",
+    match: (n: number) =>
+      n === 0 ? "Nie ma czego sprawdzać: dziś brak sprzedaży i wypłat przez PayPal." : `Zgadza się z PayPal: znaleziono wszystkie (${n}).`,
+    waiting: (n: number) =>
+      `Jeszcze nie ma w raporcie PayPal: ${n}. Nowe płatności mogą pojawić się tam nawet po 3 godzinach; sprawdź później.`,
+    gaps: (n: number) => `W Stall, ale nie w raporcie PayPal: ${n}. Sprawdź je w PayPal:`,
+    sale: "Sprzedaż",
+    payout: "Wypłata",
+    other: (n: number) => `PayPal pokazuje też inne transakcje, których nie zrobił Stall: ${n}.`,
+    unavailable: "Nie udało się pobrać raportu PayPal. Nic nie zmieniono; spróbuj ponownie.",
+    asOf: (time: string) => `Stan na ${time}. Tylko odczyt: nic nie jest zmieniane.`,
+  },
   actionLog: {
     empty: "W tym zamknięciu nic nie zapisano.",
     details: "Szczegóły",

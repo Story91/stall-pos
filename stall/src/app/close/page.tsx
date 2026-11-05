@@ -2,6 +2,7 @@
 
 import { ActionLog } from "@/components/close/ActionLog";
 import { DecisionCard } from "@/components/close/DecisionCard";
+import { MoneyCheck } from "@/components/close/MoneyCheck";
 import { PayoutsList } from "@/components/close/PayoutsList";
 import { ErrorBox, Screen, ScreenHeader, SectionTitle, Spinner } from "@/components/ui";
 import { useClose, type RunNotice } from "@/hooks/useClose";
@@ -108,6 +109,14 @@ export default function ClosePage() {
             <SectionTitle id="payouts">{t.close.payouts}</SectionTitle>
             <PayoutsList payouts={[...failed, ...c.view.payouts]} names={names} />
           </section>
+
+          {c.business && (
+            <MoneyCheck
+              key={`${run.createdAt}|${c.view.payouts.map((p) => p.status).join(",")}`}
+              date={c.business.today}
+              tz={c.business.tz}
+            />
+          )}
 
           <section aria-labelledby="log" className="flex flex-col gap-3">
             <SectionTitle id="log">{t.close.log}</SectionTitle>
