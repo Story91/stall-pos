@@ -21,6 +21,7 @@ export const es: Messages = {
     sell: "Vender",
     day: "Día",
     close: "Cierre",
+    history: "Historial",
     settings: "Ajustes",
   },
   mic: {
@@ -255,6 +256,76 @@ export const es: Messages = {
     amountChanged: "El monto cambió desde que se mostró la tarjeta. Revisa el nuevo monto y aprueba otra vez.",
     parseFailed: "No pude leer eso. Intenta otra vez o llena el formulario.",
     invalid: "Algo en el formulario no está bien. Revísalo e intenta otra vez.",
+  },
+  history: {
+    title: "Historial",
+    loading: "Cargando el historial",
+    rangeLabel: "Fechas",
+    ranges: { today: "Hoy", "7d": "7 días", "30d": "30 días" },
+    empty: "Todavía no hay nada en estas fechas. Aquí aparecen las ventas de Vender y los pagos del Cierre.",
+    search: "Buscar en la lista",
+    searchPlaceholder: "Artículo, nombre o factura",
+    exportCsv: "Exportar CSV",
+    exportName: "stall-historial",
+    gridLabel: "Ventas y pagos",
+    columns: {
+      at: "Cuándo",
+      kind: "Tipo",
+      who: "Quién / qué",
+      method: "Método",
+      status: "Estado",
+      amount: "Monto",
+      inCents: "Entra",
+      outCents: "Sale",
+    },
+    kind: { sale: "Venta", payout: "Pago" },
+    kindPlural: { sale: "Ventas", payout: "Pagos" },
+    method: { paypal: "PayPal", cash: "Efectivo", payout: "Pago" },
+    status: {
+      paid: "Pagado",
+      paid_cash: "Pagado",
+      PENDING: "Enviando",
+      SUCCESS: "Enviado",
+      FAILED: "Falló",
+      UNCLAIMED: "Sin cobrar",
+    },
+    total: "Total",
+    net: (amount: string) => `Neto ${amount}`,
+    failedNote: "Falló: no se envió nada",
+    ask: {
+      title: "Pregúntale a tu historial",
+      label: "Tu pregunta",
+      placeholder: "Ventas en efectivo de más de $20 esta semana",
+      submit: "Preguntar",
+      asking: "Leyendo tu pregunta…",
+      hold: "Mantén y pregunta",
+      notUnderstood: "No pude convertir eso en una lista. Prueba algo como «pagos fallidos este mes».",
+      showing: "Mostrando",
+      clear: "Mostrar todo",
+      micDenied: "El micrófono está bloqueado. Escribe la pregunta.",
+    },
+    summary: {
+      sales: (n: number, amount: string, method: "cash" | "paypal" | null) =>
+        `${n} ${onePlural(n, "venta", "ventas")}${method === "cash" ? " en efectivo" : method === "paypal" ? " con PayPal" : ""}, ${amount}`,
+      payouts: (n: number, amount: string) => `${n} ${onePlural(n, "pago", "pagos")}, ${amount}`,
+      failed: (n: number, amount: string) =>
+        `${n} ${onePlural(n, "pago fallido", "pagos fallidos")} (${amount} sin enviar)`,
+      net: (amount: string) => `neto ${amount}`,
+      nothing: "Nada coincide.",
+    },
+    chips: {
+      atLeast: (amount: string) => `${amount} o más`,
+      atMost: (amount: string) => `${amount} o menos`,
+      search: (text: string) => `«${text}»`,
+      sorted: (column: string, direction: "asc" | "desc", by: "time" | "amount" | "text") =>
+        `${column}, ${
+          by === "time"
+            ? direction === "desc" ? "lo más reciente primero" : "lo más antiguo primero"
+            : by === "amount"
+              ? direction === "desc" ? "de mayor a menor" : "de menor a mayor"
+              : direction === "desc" ? "de la Z a la A" : "de la A a la Z"
+        }`,
+    },
   },
   settings: {
     title: "Ajustes",

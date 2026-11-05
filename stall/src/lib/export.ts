@@ -1,6 +1,6 @@
 import { and, gte, inArray, isNotNull, isNull, lte, or, eq } from "drizzle-orm";
 import { z } from "zod";
-import type { Db, Sale } from "@/db";
+import type { Business, Db, Sale } from "@/db";
 import { sales } from "@/db/schema";
 import { businessDate } from "@/lib/dates";
 import { isoDate } from "@/lib/obligations";
@@ -8,7 +8,7 @@ import { toMoney } from "@/lib/paypal/client";
 import { getBusiness } from "@/lib/sales";
 
 const HEADER = "date,invoice_number,status,method,subtotal,tax,tip,total,items";
-const PAID_STATUSES: Sale["status"][] = ["paid", "paid_cash"];
+export const PAID_STATUSES: Sale["status"][] = ["paid", "paid_cash"];
 const MAX_DAYS = 92;
 const DAY_MS = 86_400_000;
 
@@ -57,20 +57,35 @@ export function salesToCsv(rows: Sale[], tz: string): string {
 }
 
 /** The moment a sale counts for: when it was paid, or when it was created if no payment time is recorded. */
-function settledAt(sale: Sale): Date {
+export function settledAt(sale: Pick<Sale, "paidAt" | "createdAt">): Date {
   return sale.paidAt ?? sale.createdAt;
 }
 
 /**
- * CSV of the owner's paid sales whose business date falls in `[from, to]`.
- * Loads a one-day margin on each side, since a UTC timestamp can fall on a
- * neighbouring business date, then filters by business date in JS.
+ * The UTC instants to load for business dates `[from, to]`: a one-day margin on
+ * each side, since a UTC timestamp can fall on a neighbouring business date.
+ * Callers then filter the loaded rows by business date exactly.
  */
-export async function exportSalesCsv(db: Db, query: ExportQuery): Promise<string> {
-  const { from, to } = query;
+export function loadWindow(query: ExportQuery): { lo: Date; hi: Date } {
+  return {
+    lo: new Date(Date.parse(`${query.from}T00:00:00Z`) - DAY_MS),
+    hi: new Date(Date.parse(`${query.to}T00:00:00Z`) + 2 * DAY_MS),
+  };
+}
+
+/** True when `at` falls on a business date inside `[from, to]`. */
+export function inBusinessRange(at: Date, query: ExportQuery, tz: string): boolean {
+  const date = businessDate(at, tz);
+  return date >= query.from && date <= query.to;
+}
+
+/** The owner's paid sales whose business date falls in `[from, to]`, in no particular order. */
+export async function paidSalesInRange(
+  db: Db,
+  query: ExportQuery,
+): Promise<{ business: Business; rows: Sale[] }> {
   const business = await getBusiness(db);
-  const lo = new Date(Date.parse(`${from}T00:00:00Z`) - DAY_MS);
-  const hi = new Date(Date.parse(`${to}T00:00:00Z`) + 2 * DAY_MS);
+  const { lo, hi } = loadWindow(query);
 
   const rows = await db
     .select()
@@ -86,9 +101,11 @@ export async function exportSalesCsv(db: Db, query: ExportQuery): Promise<string
       ),
     );
 
-  const inRange = rows.filter((sale) => {
-    const date = businessDate(settledAt(sale), business.tz);
-    return date >= from && date <= to;
-  });
-  return salesToCsv(inRange, business.tz);
+  return { business, rows: rows.filter((sale) => inBusinessRange(settledAt(sale), query, business.tz)) };
+}
+
+/** CSV of the owner's paid sales whose business date falls in `[from, to]`. */
+export async function exportSalesCsv(db: Db, query: ExportQuery): Promise<string> {
+  const { business, rows } = await paidSalesInRange(db, query);
+  return salesToCsv(rows, business.tz);
 }

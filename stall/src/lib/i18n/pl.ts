@@ -22,6 +22,7 @@ export const pl: Messages = {
     sell: "Sprzedaż",
     day: "Dzień",
     close: "Zamknięcie",
+    history: "Historia",
     settings: "Ustawienia",
   },
   mic: {
@@ -258,6 +259,76 @@ export const pl: Messages = {
     amountChanged: "Kwota zmieniła się od pokazania tej karty. Sprawdź nową kwotę i zatwierdź ponownie.",
     parseFailed: "Nie udało się tego odczytać. Spróbuj ponownie albo wypełnij formularz.",
     invalid: "Coś w formularzu jest nie tak. Sprawdź i spróbuj ponownie.",
+  },
+  history: {
+    title: "Historia",
+    loading: "Wczytuję historię",
+    rangeLabel: "Daty",
+    ranges: { today: "Dziś", "7d": "7 dni", "30d": "30 dni" },
+    empty: "Na razie nic w tych dniach. Tu trafiają sprzedaże z ekranu Sprzedaż i wypłaty z Zamknięcia.",
+    search: "Szukaj na liście",
+    searchPlaceholder: "Pozycja, imię lub faktura",
+    exportCsv: "Eksportuj CSV",
+    exportName: "stall-historia",
+    gridLabel: "Sprzedaż i wypłaty",
+    columns: {
+      at: "Kiedy",
+      kind: "Typ",
+      who: "Kto / co",
+      method: "Metoda",
+      status: "Status",
+      amount: "Kwota",
+      inCents: "Wpływy",
+      outCents: "Wydatki",
+    },
+    kind: { sale: "Sprzedaż", payout: "Wypłata" },
+    kindPlural: { sale: "Sprzedaż", payout: "Wypłaty" },
+    method: { paypal: "PayPal", cash: "Gotówka", payout: "Wypłata" },
+    status: {
+      paid: "Opłacono",
+      paid_cash: "Opłacono",
+      PENDING: "Wysyłanie",
+      SUCCESS: "Wysłano",
+      FAILED: "Błąd",
+      UNCLAIMED: "Nieodebrane",
+    },
+    total: "Razem",
+    net: (amount: string) => `Netto ${amount}`,
+    failedNote: "Błąd: nic nie wysłano",
+    ask: {
+      title: "Zapytaj historię",
+      label: "Twoje pytanie",
+      placeholder: "Gotówka powyżej $20 w tym tygodniu",
+      submit: "Zapytaj",
+      asking: "Czytam pytanie…",
+      hold: "Przytrzymaj i zapytaj",
+      notUnderstood: "Nie udało się zamienić tego na listę. Spróbuj np. „nieudane wypłaty w tym miesiącu”.",
+      showing: "Pokazuję",
+      clear: "Pokaż wszystko",
+      micDenied: "Mikrofon jest zablokowany. Wpisz pytanie.",
+    },
+    summary: {
+      sales: (n: number, amount: string, method: "cash" | "paypal" | null) =>
+        `${n} ${plPlural(n, "sprzedaż", "sprzedaże", "sprzedaży")}${method === "cash" ? " za gotówkę" : method === "paypal" ? " przez PayPal" : ""}, ${amount}`,
+      payouts: (n: number, amount: string) => `${n} ${plPlural(n, "wypłata", "wypłaty", "wypłat")}, ${amount}`,
+      failed: (n: number, amount: string) =>
+        `${n} ${plPlural(n, "nieudana wypłata", "nieudane wypłaty", "nieudanych wypłat")} (nie wysłano ${amount})`,
+      net: (amount: string) => `netto ${amount}`,
+      nothing: "Nic nie pasuje.",
+    },
+    chips: {
+      atLeast: (amount: string) => `${amount} lub więcej`,
+      atMost: (amount: string) => `${amount} lub mniej`,
+      search: (text: string) => `„${text}”`,
+      sorted: (column: string, direction: "asc" | "desc", by: "time" | "amount" | "text") =>
+        `${column}, ${
+          by === "time"
+            ? direction === "desc" ? "od najnowszych" : "od najstarszych"
+            : by === "amount"
+              ? direction === "desc" ? "od największych" : "od najmniejszych"
+              : direction === "desc" ? "od Z do A" : "od A do Z"
+        }`,
+    },
   },
   settings: {
     title: "Ustawienia",

@@ -20,7 +20,7 @@ Sell and settle by talking. A voice-first point of sale that turns a spoken orde
 
 ## Built with
 
-`paypal` `paypal-invoicing` `paypal-payouts` `paypal-webhooks` `claude` `vercel-ai-sdk` `next.js` `typescript` `react` `vercel` `neon` `postgresql` `drizzle` `tailwindcss` `web-speech-api` `vitest` `playwright`
+`ag-grid` `paypal` `paypal-invoicing` `paypal-payouts` `paypal-webhooks` `claude` `vercel-ai-sdk` `next.js` `typescript` `react` `vercel` `neon` `postgresql` `drizzle` `tailwindcss` `web-speech-api` `vitest` `playwright`
 
 ---
 
@@ -40,7 +40,11 @@ We wanted a tool for that owner, for both halves of the day: selling, and settli
 
 **Close the day.** One button runs the close. Code rules decide what may be paid: daily limits per person, a cap for the whole business, a check for bills that look like one already paid, and earlier failed payouts. An AI agent then works through the day with three tools (pay, hold, write a note). Payable items go out through **PayPal Payouts**. Anything suspicious becomes a decision card instead. In the demo, Maria's $120 shift is paid automatically, while the $240 tortilla bill is held because a $240 tortilla bill was already paid two days earlier, with both bills shown side by side. The owner can approve, decline, or mark it as already paid. Running the close again pays nothing twice.
 
-**See the day.** The Day screen shows sales, tax, tips, cash versus PayPal, and every payout's status as PayPal reports it. A CSV export covers any date range.
+**See the day.** The Day screen shows sales, tax, tips, cash versus PayPal, and every payout's status as PayPal reports it.
+
+**Ask your history.** The History screen is one ledger of sales and payouts on **AG Grid**, with filters, search, a totals row and CSV export. The owner can also just ask, by voice or text: "cash sales over $20 this week", "¿cuánto le pagué a Maria?". Claude turns the question into a filter for the grid, and the answer ("6 cash sales, $121.79") is computed by code from the rows it shows.
+
+**In the owner's language.** English, Spanish or Polish switches every screen, the close summary and the voice.
 
 ## How we built it
 
@@ -49,8 +53,9 @@ We wanted a tool for that owner, for both halves of the day: selling, and settli
 - **Claude through the Vercel AI SDK:** structured output for parsing spoken orders and owed amounts, and a tool-calling agent for the close.
 - **Code-enforced money rules.** A pure rules engine computes pay, hold or skip for every obligation before the model runs. The agent's pay tool refuses anything the rules did not mark payable, so text in a bill note cannot talk the model into paying. Summaries of what happened are built by code from the database, and the model's text is shown separately as an "agent's note".
 - **Neon Postgres** (provisioned through the Vercel Marketplace) with Drizzle. For judges and local runs, a zero-install `pglite://` mode runs Postgres in-process and seeds the demo day.
+- **AG Grid Community** for the History ledger: custom theme, Spanish and Polish locale packs, external filter driven by the AI view, pinned totals row, CSV export.
 - **Web Speech API** for push-to-talk and spoken confirmations, with a text fallback.
-- **442 unit and integration tests** (Vitest, against real Postgres via PGlite) and a Playwright smoke test.
+- **About 500 unit and integration tests** (Vitest, against real Postgres via PGlite) and a Playwright smoke test.
 
 ## Challenges we ran into
 
@@ -88,6 +93,7 @@ The hard part of an agent that handles money is not the model, it is everything 
 3. Open the QR or the pay link and pay on PayPal's sandbox page with **Debit or Credit Card** (use a test card from the Credit Card Generator in your PayPal Developer Dashboard) or with any sandbox Personal account. Within a few seconds Sell shows **Paid**. To skip PayPal, tap **Paid in cash**.
 4. Open **Day**, then **Close the day**, then **Run close now**. Maria's $120 shift is paid through PayPal Payouts. The tortilla bill is held as a possible duplicate.
 5. Tap **Mark as already paid**, then **Run close again**: nothing is paid twice.
+6. Open **History** and type `cash sales over $20 this week`: the AG Grid ledger filters itself and the totals row updates.
 
 The hosted demo is shared by all judges. If the day is already closed when you arrive, open **Settings** and tap **Reset demo data** to start the demo day fresh.
 

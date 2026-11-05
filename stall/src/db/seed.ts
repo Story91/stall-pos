@@ -108,6 +108,8 @@ export async function seed(
       amountCents: 24000,
       status: "SUCCESS",
       rationale: "Tortillas",
+      // Sent two days ago, with the bill: History and the daily limits must not count it as today's.
+      createdAt: new Date(Date.now() - 2 * 86_400_000),
     });
     await tx.insert(bills).values({
       businessId,
@@ -141,7 +143,8 @@ export async function seed(
           businessId,
           draftId: `seed-draft-${n}`,
           invoiceId: `INV2-SEED-${n}`,
-          invoiceNumber: `SEED-${n}`,
+          // Same shape as a real Stall invoice number (lib/sales.ts), so the demo history reads like real days.
+          invoiceNumber: `STALL-${date.replaceAll("-", "")}-${(0xa1b2c + n * 7919).toString(16).slice(-6).toUpperCase()}`,
           status: n % 5 === 0 ? "paid_cash" : "paid",
           lines,
           subtotalCents: totals.subtotalCents,

@@ -18,8 +18,11 @@
     "eval:parse": "tsx scripts/eval-parse.ts"
   },
   "dependencies": {
+    "@ag-grid-community/locale": "36.2.0",
     "@ai-sdk/anthropic": "^4.0.96",
     "@electric-sql/pglite": "^0.5.15",
+    "ag-grid-community": "36.2.0",
+    "ag-grid-react": "36.2.0",
     "ai": "^7.0.162",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.5",

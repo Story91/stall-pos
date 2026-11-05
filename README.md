@@ -21,6 +21,9 @@ No login is needed to pay: PayPal's sandbox invoice page accepts **Debit or Cred
    - Maria's $120 shift is paid through PayPal Payouts, with a one-sentence reason.
    - The tortillas bill is **held**: it looks like a bill paid two days ago. The decision card shows both bills.
 7. Tap **Mark as already paid** on the held bill (nothing is sent), then **Run close again**. Nothing is paid twice.
+8. Open **History** and type `cash sales over $20 this week` (or hold the mic and ask). Claude turns the question into a filter on the AG Grid ledger; the answer line and the totals row are computed by code from the rows shown.
+
+The **EN / ES / PL** buttons on Sell (also in Settings) switch the whole app: every screen, the close summary and the voice.
 
 Payouts settle in about 18 seconds in the sandbox. The Close screen shows the payout as Sending, then Paid, as PayPal reports it.
 
@@ -70,7 +73,7 @@ Open <http://localhost:3000>, enter your `OWNER_PIN`, and follow the judge path 
 
 ## What works / demo-only / later
 
-**Works (real behavior in sandbox):** voice capture (Web Speech, text fallback), parsing in en/es/pl, catalog learning (price suggested after 2 sightings), invoice create/send/QR, webhook-confirmed payment, cash recording, shift and bill logging, close-the-day with Payouts, rule enforcement, duplicate-bill hold, decision cards with approve/decline, idempotency, Day view, CSV export of the day/month.
+**Works (real behavior in sandbox):** voice capture (Web Speech, text fallback), parsing in en/es/pl, catalog learning (price suggested after 2 sightings), invoice create/send/QR, webhook-confirmed payment, cash recording, shift and bill logging, close-the-day with Payouts, rule enforcement, duplicate-bill hold, decision cards with approve/decline, idempotency, Day view, CSV export of the day/month, History ledger on AG Grid with "ask your history", the whole app in English, Spanish and Polish.
 
 **Demo-only:**
 
@@ -110,6 +113,7 @@ Out of scope: card reader, receipt printing, inventory, tables, multi-location, 
 |---|---|---|
 | Sale parser | Turns "dos tacos al pastor y un agua fresca" into items with quantities, prices from the learned catalog, and a confidence per item. Structured output validated with zod. | [`parseSale.ts`](stall/src/lib/parse/parseSale.ts) |
 | Obligation parser | Turns "I owe Rosa 240 for tortillas" or "Maria worked today" into a bill or shift record. | [`parseObligation.ts`](stall/src/lib/parse/parseObligation.ts) |
+| History questions | Turns "cash sales over $20 this week" or "¿cuánto le pagué a Maria?" into a filter view (range, kind, method, payee, amount bounds, sort) for the grid. It returns only the filter, never a number: totals come from the rows. | [`historyAsk.ts`](stall/src/lib/historyAsk.ts), [`historyView.ts`](stall/src/lib/historyView.ts) |
 | Close agent | Writes the day's summary, orders the actions, phrases each rationale, and chooses `pay_obligation` or `hold_obligation` per item. | [`agent.ts`](stall/src/lib/close/agent.ts), [`runClose.ts`](stall/src/lib/close/runClose.ts) |
 
 **The model can hold, but it can never pay outside the rules.** [`rules.ts`](stall/src/lib/close/rules.ts) is plain code that decides, before the model runs, whether each logged shift or bill is `pay`, `hold` or `skip`: payee enabled and auto-pay on, amount within the payee's per-day limit and the business cap, and no duplicate bill within 7 days (amount within 10%, or the same note). The agent's tools refuse to pay anything that is not `pay`, and every attempt is logged. The model may escalate a payable item to a hold; it can never turn a hold into a payment, and it never invents an amount: it acts only on records the owner logged. Every amount is US dollars: the currency is hard-coded to USD throughout (invoices, payouts, the database), not checked by a rule.
@@ -141,6 +145,7 @@ Hosting: Vercel (project root directory `stall`), Postgres on Neon through the V
 
 | Tool | Use |
 |---|---|
+| **AG Grid** (Community 36.2) | The **History** screen: one ledger of sales and payouts with sorting, column filters, quick search, a pinned totals row recomputed from the filtered rows, CSV export of the current view, AG Grid's own locale packs for Spanish and Polish, and a custom theme. The AI "ask your history" answer is applied to the grid as an external filter and sort. [`HistoryGrid.tsx`](stall/src/components/history/HistoryGrid.tsx) |
 | **Vercel** | Hosting (root directory `stall`), Vercel AI SDK 7 for model calls and the close agent's tool loop, Vercel Cron for the nightly close, Neon Postgres through the Marketplace. |
 
 ## Tests and evals
@@ -149,7 +154,7 @@ Run from `stall/`.
 
 | Command | What it checks |
 |---|---|
-| `npm test` | Vitest: 400+ tests (PGlite in memory, recorded PayPal fixtures, close rules, parsers, routes). |
+| `npm test` | Vitest: about 500 tests (PGlite in memory, recorded PayPal fixtures, close rules, parsers, routes). |
 | `npm run typecheck` | `tsc --noEmit`, strict. |
 | `npm run lint` | ESLint. |
 | `npm run build` | Production build. |

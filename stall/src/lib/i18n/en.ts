@@ -21,6 +21,7 @@ export const en = {
     sell: "Sell",
     day: "Day",
     close: "Close",
+    history: "History",
     settings: "Settings",
   },
   mic: {
@@ -254,6 +255,75 @@ export const en = {
     amountChanged: "The amount changed since this card was shown. Check the new amount and approve again.",
     parseFailed: "Couldn't read that. Try again or fill in the form.",
     invalid: "Something in the form is not right. Check it and try again.",
+  },
+  history: {
+    title: "History",
+    loading: "Loading history",
+    rangeLabel: "Dates",
+    ranges: { today: "Today", "7d": "7 days", "30d": "30 days" },
+    empty: "Nothing here yet for these dates. Sales you ring up on Sell and payouts from Close land here.",
+    search: "Search the list",
+    searchPlaceholder: "Item, name or invoice",
+    exportCsv: "Export CSV",
+    exportName: "stall-history",
+    gridLabel: "Sales and payouts",
+    columns: {
+      at: "When",
+      kind: "Type",
+      who: "Who / what",
+      method: "Method",
+      status: "Status",
+      amount: "Amount",
+      inCents: "In",
+      outCents: "Out",
+    },
+    kind: { sale: "Sale", payout: "Payout" },
+    kindPlural: { sale: "Sales", payout: "Payouts" },
+    method: { paypal: "PayPal", cash: "Cash", payout: "Payout" },
+    status: {
+      paid: "Paid",
+      paid_cash: "Paid",
+      PENDING: "Sending",
+      SUCCESS: "Sent",
+      FAILED: "Failed",
+      UNCLAIMED: "Not claimed",
+    },
+    total: "Total",
+    net: (amount: string) => `Net ${amount}`,
+    failedNote: "Failed: nothing was sent",
+    ask: {
+      title: "Ask your history",
+      label: "Your question",
+      placeholder: "Cash sales over $20 this week",
+      submit: "Ask",
+      asking: "Reading your question…",
+      hold: "Hold and ask",
+      notUnderstood: "I couldn't turn that into a list. Try something like “failed payouts this month”.",
+      showing: "Showing",
+      clear: "Show everything",
+      micDenied: "The microphone is blocked. Type the question instead.",
+    },
+    summary: {
+      sales: (n: number, amount: string, method: "cash" | "paypal" | null) =>
+        `${n} ${method === "cash" ? "cash " : method === "paypal" ? "PayPal " : ""}${onePlural(n, "sale", "sales")}, ${amount}`,
+      payouts: (n: number, amount: string) => `${n} ${onePlural(n, "payout", "payouts")}, ${amount}`,
+      failed: (n: number, amount: string) => `${n} failed ${onePlural(n, "payout", "payouts")} (${amount} not sent)`,
+      net: (amount: string) => `net ${amount}`,
+      nothing: "Nothing matches.",
+    },
+    chips: {
+      atLeast: (amount: string) => `${amount} or more`,
+      atMost: (amount: string) => `${amount} or less`,
+      search: (text: string) => `“${text}”`,
+      sorted: (column: string, direction: "asc" | "desc", by: "time" | "amount" | "text") =>
+        `${column}, ${
+          by === "time"
+            ? direction === "desc" ? "newest first" : "oldest first"
+            : by === "amount"
+              ? direction === "desc" ? "highest first" : "lowest first"
+              : direction === "desc" ? "Z to A" : "A to Z"
+        }`,
+    },
   },
   settings: {
     title: "Settings",
