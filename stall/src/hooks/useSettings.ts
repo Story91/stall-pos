@@ -41,6 +41,13 @@ export function useSettings() {
     return { ok: true as const };
   };
 
+  const savePayee = async (id: string, patch: { dailyRateCents?: number | null; maxPerDayCents?: number; autoPay?: boolean }) => {
+    const result = await ownerCall<PayeeRow>(`/api/payees/${id}`, send("PATCH", patch));
+    if (!result.ok) return { ok: false as const, message: failed(result) };
+    setPayees((rows) => rows?.map((row) => (row.id === id ? result.data : row)) ?? rows);
+    return { ok: true as const };
+  };
+
   const resetDemo = async () => {
     const result = await ownerCall("/api/reset-demo", send("POST"));
     if (!result.ok) return { ok: false as const, message: failed(result) };
@@ -48,5 +55,5 @@ export function useSettings() {
     return { ok: true as const };
   };
 
-  return { business, catalog, payees, loadError, reload: () => void load(), saveBusiness, resetDemo };
+  return { business, catalog, payees, loadError, reload: () => void load(), saveBusiness, savePayee, resetDemo };
 }

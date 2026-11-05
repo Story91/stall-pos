@@ -1,15 +1,16 @@
 "use client";
 
 import { BusinessForm } from "@/components/settings/BusinessForm";
+import { PayeeList } from "@/components/settings/PayeeList";
 import { ResetDemo } from "@/components/settings/ResetDemo";
 import { LanguagePicker } from "@/components/sell/LanguagePicker";
 import { ErrorBox, Screen, ScreenHeader, SectionTitle } from "@/components/ui";
 import { useSettings } from "@/hooks/useSettings";
-import type { CatalogRow, PayeeRow } from "@/lib/owner/types";
+import type { CatalogRow } from "@/lib/owner/types";
 import { daysAgo } from "@/lib/dates";
 import { useLanguage, useT } from "@/lib/i18n/useT";
 import { writeLanguage } from "@/lib/sell/languageStore";
-import { formatCents } from "@/lib/sell/format";
+import { formatCents, shortDate } from "@/lib/sell/format";
 
 const th = "border-b-2 border-ink px-2 py-2 text-left text-base font-semibold whitespace-nowrap";
 const td = "border-b border-rule px-2 py-3 align-top text-lg";
@@ -48,7 +49,7 @@ export default function SettingsPage() {
       <section aria-labelledby="payees" className="flex flex-col gap-3">
         <SectionTitle id="payees">{t.settings.payees}</SectionTitle>
         <p className="text-lg text-graphite">{t.settings.payeesHint}</p>
-        {s.payees && <PayeesTable payees={s.payees} />}
+        {s.payees && <PayeeList payees={s.payees} onSave={s.savePayee} />}
       </section>
 
       <section aria-labelledby="export" className="flex flex-col gap-3">
@@ -71,6 +72,7 @@ export default function SettingsPage() {
 
 function ExportLinks({ today }: { today: string }) {
   const t = useT();
+  const language = useLanguage();
   const monthStart = `${today.slice(0, 8)}01`;
   const last30Start = daysAgo(today, 29);
   const links = [
@@ -86,7 +88,7 @@ function ExportLinks({ today }: { today: string }) {
             href={`/api/export?from=${link.from}&to=${link.to}`}
             download
           >
-            {t.settings.exportRange(link.label, link.from, link.to)}
+            {t.settings.exportRange(link.label, shortDate(link.from, language), shortDate(link.to, language))}
           </a>
         </li>
       ))}
@@ -118,42 +120,6 @@ function CatalogTable({ items }: { items: CatalogRow[] }) {
                 {item.defaultPriceCents === null ? c.learning : formatCents(item.defaultPriceCents)}
               </td>
               <td className={td}>{item.taxable ? t.common.yes : t.common.no}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function PayeesTable({ payees }: { payees: PayeeRow[] }) {
-  const t = useT();
-  const c = t.settings.people;
-  if (payees.length === 0) return <p className="text-lg">{c.empty}</p>;
-  return (
-    <div className="-mx-4 overflow-x-auto px-4">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            <th className={th}>{c.name}</th>
-            <th className={th}>{c.role}</th>
-            <th className={`${th} text-right`}>{c.dayRate}</th>
-            <th className={`${th} text-right`}>{c.maxDay}</th>
-            <th className={th}>{c.autoPay}</th>
-            <th className={th}>{c.email}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {payees.map((p) => (
-            <tr key={p.id}>
-              <td className={`${td} font-semibold`}>{p.name}</td>
-              <td className={td}>{p.role === "helper" ? t.common.helper : t.common.supplier}</td>
-              <td className={`${td} money text-right`}>
-                {p.dailyRateCents === null ? c.byBill : formatCents(p.dailyRateCents)}
-              </td>
-              <td className={`${td} money text-right`}>{formatCents(p.maxPerDayCents)}</td>
-              <td className={td}>{p.autoPay ? t.common.yes : c.asksYou}</td>
-              <td className={`${td} whitespace-nowrap text-graphite`}>{p.email}</td>
             </tr>
           ))}
         </tbody>

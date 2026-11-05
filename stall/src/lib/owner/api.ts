@@ -55,6 +55,7 @@ export function failureText(failure: { status: number; code: string }, language:
   if (failure.code === "no_amount") return errors.noAmount;
   if (failure.code === "amount_changed") return errors.amountChanged;
   if (failure.code === "parse_failed") return errors.parseFailed;
+  if (failure.code === "rate_over_limit") return errors.rateOverLimit;
   if (failure.status === 400) return errors.invalid;
   return common.serverError;
 }

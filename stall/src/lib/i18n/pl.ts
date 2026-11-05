@@ -148,8 +148,8 @@ export const pl: Messages = {
     },
   },
   payees: {
-    noHelpers: "Nie ma jeszcze pomocników. Ci, których dodasz w Ustawieniach, pojawią się tutaj.",
-    noRates: "Żaden pomocnik nie ma stawki dziennej. Ustaw ją w Ustawieniach, aby zapisywać tu zmiany.",
+    noHelpers: "Nie ma jeszcze pomocników. Dodaje się ich przy konfiguracji i pojawią się tutaj.",
+    noRates: "Żaden pomocnik nie ma stawki dziennej. Ustaw ją w Ustawieniach, w sekcji osób, aby zapisywać tu zmiany.",
     noRate: "Brak stawki",
     perDay: (amount: string) => `${amount} dziennie`,
   },
@@ -268,6 +268,7 @@ export const pl: Messages = {
     amountChanged: "Kwota zmieniła się od pokazania tej karty. Sprawdź nową kwotę i zatwierdź ponownie.",
     parseFailed: "Nie udało się tego odczytać. Spróbuj ponownie albo wypełnij formularz.",
     invalid: "Coś w formularzu jest nie tak. Sprawdź i spróbuj ponownie.",
+    rateOverLimit: "Stawka dzienna nie może być wyższa niż limit dzienny.",
   },
   history: {
     title: "Historia",
@@ -348,7 +349,8 @@ export const pl: Messages = {
     menu: "Menu",
     menuHint: "Stall uczy się nowych pozycji i cen z twojej sprzedaży.",
     payees: "Ludzie i dostawcy",
-    payeesHint: "Agent wypłaca im pieniądze przez PayPal przy zamknięciu, nigdy ponad dzienny limit.",
+    payeesHint:
+      "Agent płaci im przez PayPal przy zamknięciu, nigdy więcej niż limit dzienny. Dotknij Edytuj, aby zmienić stawkę, limit lub autopłatność.",
     export: "Eksport CSV",
     exportHint: "Opłacona sprzedaż, jeden wiersz na transakcję, dla księgowej albo do arkusza.",
     monthToDate: "Od początku miesiąca",
@@ -374,6 +376,14 @@ export const pl: Messages = {
       email: "E-mail PayPal",
       byBill: "Wg rachunku",
       asksYou: "Pyta ciebie",
+      edit: "Edytuj",
+      editTitle: (name: string) => `Edytuj: ${name}`,
+      save: "Zapisz",
+      cancel: "Anuluj",
+      saved: "Zapisano. Następne zamknięcie użyje tych limitów.",
+      maxHint: "Do $1,000.00 dziennie.",
+      autoPayHelp: "Wypłacaj przy zamknięciu bez pytania",
+      rateHint: "Zostaw puste, jeśli płacisz według rachunku.",
     },
   },
   businessForm: {
