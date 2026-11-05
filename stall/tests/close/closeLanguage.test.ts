@@ -123,7 +123,7 @@ describe("deterministicSummary in the owner's language", () => {
   it("is unchanged in English", () => {
     expect(deterministicSummary(TODAY, stateFor("en"), [], 2)).toBe(
       "Closed November 4. Paid 1 ($120.00 total): Maria $120.00. " +
-        "1 need your decision: Tortillería Rosa $240.00 (Possible duplicate: a $240.00 bill for Tortillería Rosa was already paid on November 2.). " +
+        "1 need your decision: Tortillería Rosa $240.00 (Possible duplicate: a $240.00 bill for Tortillería Rosa was already paid on November 2). " +
         "2 already handled.",
     );
   });
@@ -132,7 +132,7 @@ describe("deterministicSummary in the owner's language", () => {
     const outcomes = evaluate("es");
     expect(deterministicSummary(TODAY, stateFor("es"), [outcomes[2]!], 1, "es")).toBe(
       "Cierre del 4 de noviembre. Se pagó 1 (total $120.00): Maria $120.00. " +
-        "1 espera tu decisión: Tortillería Rosa $240.00 (Posible duplicado: ya se pagó una cuenta de $240.00 a Tortillería Rosa el 2 de noviembre.). " +
+        "1 espera tu decisión: Tortillería Rosa $240.00 (Posible duplicado: ya se pagó una cuenta de $240.00 a Tortillería Rosa el 2 de noviembre). " +
         "1 no se pudo pagar y se volverá a intentar: Luis $90.00. " +
         "1 ya estaba resuelto.",
     );
@@ -142,7 +142,7 @@ describe("deterministicSummary in the owner's language", () => {
     const summary = deterministicSummary(TODAY, stateFor("pl"), [], 5, "pl");
     expect(summary).toBe(
       "Zamknięto dzień 4 listopada. Wypłacono 1 pozycję (razem $120.00): Maria $120.00. " +
-        "1 pozycja czeka na twoją decyzję: Tortillería Rosa $240.00 (Możliwy duplikat: rachunek na $240.00 (Tortillería Rosa) został już zapłacony 2 listopada.). " +
+        "1 pozycja czeka na twoją decyzję: Tortillería Rosa $240.00 (Możliwy duplikat: rachunek na $240.00 (Tortillería Rosa) został już zapłacony 2 listopada). " +
         "5 pozycji było już załatwionych.",
     );
     const m = closeMessages("pl").summary;

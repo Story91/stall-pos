@@ -29,7 +29,7 @@ export function PayoutsList({ payouts, names }: { payouts: PayoutRow[]; names: M
                   </span>
                 )}
               </p>
-              <p className="truncate text-base text-graphite">{payout.rationale}</p>
+              <p className={`text-base text-graphite ${payout.status === "FAILED" ? "" : "truncate"}`}>{payout.rationale}</p>
             </div>
             <span className="money text-2xl font-bold">{formatCents(payout.amountCents)}</span>
             <span

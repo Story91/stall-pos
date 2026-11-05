@@ -34,3 +34,11 @@ export function agentNote(log: LogEntry[]): string | null {
   const text = (entry?.input as { text?: unknown } | undefined)?.text;
   return typeof text === "string" && text.trim() !== "" ? text.trim() : null;
 }
+
+/**
+ * The summary is code-built from sentences joined by spaces; split it back so the
+ * first ("Closed November 4.") is the heading and each fact is its own line.
+ */
+export function summarySentences(summary: string): string[] {
+  return summary.split(/(?<=[.!?])\s+(?=[\p{Lu}\d])/u).filter((s) => s.trim() !== "");
+}

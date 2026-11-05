@@ -171,6 +171,7 @@ export const pl: Messages = {
   },
   payouts: {
     empty: "Brak wypłat w tym dniu.",
+    notSent: "Nie wysłano. Dotknij „Zamknij ponownie”, aby spróbować jeszcze raz.",
     unknownPayee: "Nieznany odbiorca",
     status: {
       PENDING: "Wysyłanie",
@@ -195,14 +196,22 @@ export const pl: Messages = {
     runAgain: "Zamknij ponownie",
     safe: "Można powtórzyć: nic nie zostanie wypłacone dwa razy.",
     nothingNew: "Nic nowego. Wszystko na dziś było już załatwione.",
-    acted: (paid: number, held: number) => `Wypłacono: ${paid}, czeka na ciebie: ${held}.`,
+    acted: (paid: number, held: number, failed = 0) =>
+      `Wypłacono: ${paid}, czeka na ciebie: ${held}.${failed > 0 ? ` Nie wysłano: ${failed}, spróbuj ponownie.` : ""}`,
     running: "Zamykam dzień. Agent sprawdza każdą zmianę i każdy rachunek względem twoich limitów.",
   },
   actionLog: {
     empty: "W tym zamknięciu nic nie zapisano.",
+    details: "Szczegóły",
+    errors: {
+      ai: "Nie udało się połączyć z agentem AI, więc reguły same dokończyły dzień.",
+      network: "Brak połączenia z PayPal. Nic nie wysłano; uruchom zamknięcie ponownie.",
+      paypal: "PayPal nie przyjął tej wypłaty. Nic nie wysłano; uruchom zamknięcie ponownie.",
+      rules: "Twoje limity na to nie pozwalają, więc nic nie wypłacono.",
+      other: "Ten krok się nie udał. Nic nie zostało wypłacone dwa razy.",
+    },
     ok: "ok",
     refused: "odmowa",
-    codeSaid: "Kod odpowiedział:",
     tools: {
       pay_obligation: "Wypłacono",
       hold_obligation: "Wstrzymano dla ciebie",

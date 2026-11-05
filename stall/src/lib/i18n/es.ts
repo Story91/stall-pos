@@ -168,6 +168,7 @@ export const es: Messages = {
   },
   payouts: {
     empty: "No hay pagos este día.",
+    notSent: 'No se envió. Toca "Cerrar otra vez" para reintentar.',
     unknownPayee: "Persona desconocida",
     status: {
       PENDING: "Enviando",
@@ -192,14 +193,22 @@ export const es: Messages = {
     runAgain: "Cerrar otra vez",
     safe: "Puedes repetirlo: nada se paga dos veces.",
     nothingNew: "Nada nuevo. Todo lo de hoy ya estaba listo.",
-    acted: (paid: number, held: number) => `Pagados: ${paid}. Esperan tu decisión: ${held}.`,
+    acted: (paid: number, held: number, failed = 0) =>
+      `Pagados: ${paid}. Esperan tu decisión: ${held}.${failed > 0 ? ` Sin enviar: ${failed}, intenta otra vez.` : ""}`,
     running: "Cerrando el día. El agente revisa cada turno y cuenta contra tus límites.",
   },
   actionLog: {
     empty: "No se registró nada en este cierre.",
+    details: "Detalles",
+    errors: {
+      ai: "No se pudo contactar al agente de IA, así que las reglas terminaron el día solas.",
+      network: "No se pudo contactar a PayPal. No se envió nada; cierra otra vez.",
+      paypal: "PayPal no aceptó este pago. No se envió nada; cierra otra vez.",
+      rules: "Tus límites no lo permiten, así que no se pagó nada.",
+      other: "Este paso no se completó. Nada se pagó dos veces.",
+    },
     ok: "ok",
     refused: "rechazado",
-    codeSaid: "El código dijo:",
     tools: {
       pay_obligation: "Pagado",
       hold_obligation: "Apartado para ti",

@@ -167,6 +167,7 @@ export const en = {
   },
   payouts: {
     empty: "No payouts for this day.",
+    notSent: 'Not sent. Tap "Run close again" to retry.',
     unknownPayee: "Unknown payee",
     status: {
       PENDING: "Sending",
@@ -191,14 +192,22 @@ export const en = {
     runAgain: "Run close again",
     safe: "Safe to repeat: nothing is ever paid twice.",
     nothingNew: "Nothing new. Everything for today was already handled.",
-    acted: (paid: number, held: number) => `Paid ${paid}, held ${held} for you.`,
+    acted: (paid: number, held: number, failed = 0) =>
+      `Paid ${paid}, held ${held} for you.${failed > 0 ? ` ${failed} not sent, try again.` : ""}`,
     running: "Closing the day. The agent is checking each shift and bill against your limits.",
   },
   actionLog: {
     empty: "Nothing was logged for this close.",
+    details: "Details",
+    errors: {
+      ai: "The AI agent could not be reached, so the rules finished the day on their own.",
+      network: "Could not reach PayPal. Nothing was sent; run the close again.",
+      paypal: "PayPal did not accept this payout. Nothing was sent; run the close again.",
+      rules: "Not allowed by your limits, so nothing was paid.",
+      other: "This step did not go through. Nothing was paid twice.",
+    },
     ok: "ok",
     refused: "refused",
-    codeSaid: "Code said:",
     tools: {
       pay_obligation: "Paid",
       hold_obligation: "Held for you",

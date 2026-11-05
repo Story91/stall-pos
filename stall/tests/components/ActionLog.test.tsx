@@ -70,6 +70,15 @@ describe("ActionLog", () => {
     expect(screen.getByText("Held for you")).toBeTruthy();
     expect(screen.getByText("Maria: Looks like a duplicate")).toBeTruthy();
     expect(screen.getByText("refused")).toBeTruthy();
-    expect(screen.getByText("Code said: over_daily_limit")).toBeTruthy();
+    // Plain words for the owner; the raw error stays under Details.
+    expect(screen.getByText("Not allowed by your limits, so nothing was paid.")).toBeTruthy();
+    expect(screen.getByText("over_daily_limit")).toBeTruthy();
+  });
+
+  it("explains an unreachable agent without the raw API error up front", () => {
+    const down: LogEntry = { step: 1, tool: "model_error", input: null, result: "invalid x-api-key", at };
+    render(<ActionLog log={[down]} names={names} tz="America/Chicago" />);
+    expect(screen.getByText(/The AI agent could not be reached/)).toBeTruthy();
+    expect(screen.getByText("invalid x-api-key").closest("details")).toBeTruthy();
   });
 });
