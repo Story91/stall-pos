@@ -213,6 +213,7 @@ export const pl: Messages = {
     },
     ok: "ok",
     refused: "odmowa",
+    unpaid: (n: number, numbers: string) => (n === 0 ? "Wszystkie dzisiejsze faktury są opłacone." : `Nieopłacone: ${n} (${numbers})`),
     tools: {
       pay_obligation: "Wypłacono",
       hold_obligation: "Wstrzymano dla ciebie",
@@ -220,6 +221,7 @@ export const pl: Messages = {
       auto_pay: "Wypłacono według reguł",
       auto_hold: "Wstrzymano według reguł",
       model_text: "Agent napisał",
+      check_unpaid_invoices: "Sprawdził w PayPal nieopłacone faktury (Agent Toolkit)",
       model_error: "Agent niedostępny, reguły zamknęły dzień",
     },
   },

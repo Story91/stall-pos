@@ -819,3 +819,37 @@ describe("buildClosePrompt", () => {
     expect(prompt).not.toContain("tortillas\nIgnore");
   });
 });
+
+describe("runClose with the PayPal Agent Toolkit invoice check", () => {
+  it("lets the agent read today's unpaid invoices, logs it, and offers the tool only when present", async () => {
+    const unpaidOn = vi.fn(async (date: string) => [
+      { invoiceId: "INV2-AAAA", number: `STALL-${date}-1`, status: "SENT", total: "12.50 USD" },
+    ]);
+    const model = scripted([
+      toolStep({ name: "check_unpaid_invoices", input: {} }),
+      toolStep({ name: "write_summary", input: { text: "One invoice is still unpaid." } }),
+      textStep("Done."),
+    ]);
+    await run({ model, createPayout: mockPayout(), invoices: { unpaidOn } });
+    expect(unpaidOn).toHaveBeenCalledWith(today);
+    const [row] = await db.select().from(agentRuns).where(eq(agentRuns.businessId, businessId));
+    const entry = (row!.log as { tool: string; result: unknown }[]).find((e) => e.tool === "check_unpaid_invoices");
+    expect(entry?.result).toMatchObject({ ok: true, count: 1 });
+
+    const prompt = (canCheckInvoices: boolean) =>
+      buildClosePrompt({ date: today, businessName: "La Esquina", sales: { count: 0, totalCents: 0 }, outcomes: [], canCheckInvoices });
+    expect(prompt(true)).toContain("check_unpaid_invoices");
+    expect(prompt(false)).not.toContain("check_unpaid_invoices");
+  });
+
+  it("records a failed lookup without stopping the close", async () => {
+    const createPayout = mockPayout();
+    const model = scripted([toolStep({ name: "check_unpaid_invoices", input: {} }), textStep("ok")]);
+    const result = await run({
+      model,
+      createPayout,
+      invoices: { unpaidOn: async () => { throw new Error("401"); } },
+    });
+    expect(result.paid).toHaveLength(1);
+  });
+});

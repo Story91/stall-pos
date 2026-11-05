@@ -105,7 +105,10 @@ Out of scope: card reader, receipt printing, inventory, tables, multi-location, 
 | Pay a logged shift or bill | `POST /v1/payments/payouts` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Payout batch status | `GET /v1/payments/payouts/{batch_id}` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Signature check on every webhook | `POST /v1/notifications/verify-webhook-signature` | [`webhooks.ts`](stall/src/lib/paypal/webhooks.ts) |
+| Close agent checks which of today's invoices are still unpaid (read-only, **PayPal Agent Toolkit** `list_invoices`, adapted to AI SDK 7) | `GET /v2/invoicing/invoices` | [`toolkit.ts`](stall/src/lib/paypal/toolkit.ts), [`agent.ts`](stall/src/lib/close/agent.ts) |
 | Token cache, `PayPal-Request-Id` on every POST, zod-validated responses | `POST /v1/oauth2/token` | [`client.ts`](stall/src/lib/paypal/client.ts), [`schemas.ts`](stall/src/lib/paypal/schemas.ts) |
+
+The agent reads PayPal through the toolkit, but money only moves through Stall's own Payouts tool, behind limits enforced in code. The toolkit has no Payouts tool.
 
 **Sandbox facts we measured** (full notes: [`docs/superpowers/spike-findings.md`](docs/superpowers/spike-findings.md)):
 

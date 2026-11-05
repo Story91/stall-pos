@@ -6,6 +6,7 @@ import { getModel } from "@/lib/ai/model";
 import { closeMessages } from "@/lib/i18n/close";
 import type { Language } from "@/lib/parse/schema";
 import type { createPayout } from "@/lib/paypal/payouts";
+import type { InvoiceLookup } from "@/lib/paypal/toolkit";
 import {
   buildClosePrompt,
   createCloseTools,
@@ -26,6 +27,8 @@ export type RunCloseDeps = {
   createPayout: typeof createPayout;
   businessDailyCapCents?: number;
   now?: Date;
+  /** PayPal Agent Toolkit invoice lookup (read-only); omitted in tests and mock mode. */
+  invoices?: InvoiceLookup | null;
 };
 
 export type RunCloseResult = {
@@ -115,6 +118,7 @@ export async function runClose(
     held: new Map(),
     log: [],
     locks: new Map(),
+    invoices: deps.invoices ?? null,
   };
 
   const actionable = outcomes.filter((o) => o.verdict !== "skip");
@@ -128,6 +132,7 @@ export async function runClose(
           sales: data.sales,
           outcomes,
           language,
+          canCheckInvoices: Boolean(deps.invoices),
         }),
         prompt: "Close out the day now.",
         tools: createCloseTools(state),

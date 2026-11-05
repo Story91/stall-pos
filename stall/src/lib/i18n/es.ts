@@ -209,6 +209,7 @@ export const es: Messages = {
     },
     ok: "ok",
     refused: "rechazado",
+    unpaid: (n: number, numbers: string) => (n === 0 ? "Todas las facturas de hoy están pagadas." : `${n} sin pagar: ${numbers}`),
     tools: {
       pay_obligation: "Pagado",
       hold_obligation: "Apartado para ti",
@@ -216,6 +217,7 @@ export const es: Messages = {
       auto_pay: "Pagado por las reglas",
       auto_hold: "Apartado por las reglas",
       model_text: "El agente dijo",
+      check_unpaid_invoices: "Revisó en PayPal las facturas sin pagar (Agent Toolkit)",
       model_error: "Agente no disponible, las reglas cerraron el día",
     },
   },

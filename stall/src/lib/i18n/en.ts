@@ -208,6 +208,7 @@ export const en = {
     },
     ok: "ok",
     refused: "refused",
+    unpaid: (n: number, numbers: string) => (n === 0 ? "All of today's invoices are paid." : `${n} still unpaid: ${numbers}`),
     tools: {
       pay_obligation: "Paid",
       hold_obligation: "Held for you",
@@ -215,6 +216,7 @@ export const en = {
       auto_pay: "Paid by the rules",
       auto_hold: "Held by the rules",
       model_text: "Agent said",
+      check_unpaid_invoices: "Checked PayPal for unpaid invoices (Agent Toolkit)",
       model_error: "Agent unavailable, rules finished the day",
     },
   },

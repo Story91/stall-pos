@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { hasBearerToken, hasCloseKey, requireOwner } from "@/lib/auth";
 import { closeDay, readOptionalJson } from "@/lib/closeApi";
 import { createPayout } from "@/lib/paypal/payouts";
+import { createInvoiceLookup } from "@/lib/paypal/toolkit";
 import { toResponse } from "@/lib/salesApi";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export const maxDuration = 60;
 export async function POST(request: Request): Promise<Response> {
   try {
     if (!hasCloseKey(request) && !hasBearerToken(request)) requireOwner(request);
-    return Response.json(await closeDay(db, { createPayout }, await readOptionalJson(request)));
+    return Response.json(await closeDay(db, { createPayout, invoices: createInvoiceLookup() }, await readOptionalJson(request)));
   } catch (error) {
     return toResponse(error);
   }
@@ -27,7 +28,7 @@ export async function GET(request: Request): Promise<Response> {
     if (!hasCloseKey(request) && !hasBearerToken(request)) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
-    return Response.json(await closeDay(db, { createPayout }, {}));
+    return Response.json(await closeDay(db, { createPayout, invoices: createInvoiceLookup() }, {}));
   } catch (error) {
     return toResponse(error);
   }

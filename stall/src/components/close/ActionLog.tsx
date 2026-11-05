@@ -53,11 +53,19 @@ export function ActionLog({ log, names, tz }: Props) {
         const isAgentDown = entry.tool === "model_error";
         // A raw error (from code, PayPal or the model API) is shown in plain words; the original stays under Details.
         const raw = isAgentDown ? (typeof entry.result === "string" ? entry.result : "") : typeof error === "string" ? error : null;
-        const line = isNote || isAgentDown
+        const invoices = field(entry.result, "invoices");
+        const invoiceLine =
+          entry.tool === "check_unpaid_invoices" && ok === true && Array.isArray(invoices)
+            ? t.actionLog.unpaid(
+                invoices.length,
+                invoices.map((i) => String(field(i, "number") ?? "")).filter(Boolean).join(", "),
+              )
+            : null;
+        const line = invoiceLine ?? (isNote || isAgentDown
           ? ""
           : isSaid && typeof saidText === "string"
             ? plainText(saidText)
-            : describeInput(entry, names);
+            : describeInput(entry, names));
         return (
           <li key={entry.step} className="relative flex gap-3 pb-4 pl-1 last:pb-0">
             <span aria-hidden className="absolute top-8 bottom-0 left-[1.15rem] w-0.5 bg-rule" />

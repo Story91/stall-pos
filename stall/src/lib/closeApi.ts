@@ -108,7 +108,7 @@ export async function parseObligationText(
 
 export async function closeDay(
   db: Db,
-  deps: { createPayout: typeof createPayout } & Pick<RunCloseDeps, "model" | "now">,
+  deps: { createPayout: typeof createPayout } & Pick<RunCloseDeps, "model" | "now" | "invoices">,
   body: unknown,
 ) {
   const input = closeBody.parse(body);
