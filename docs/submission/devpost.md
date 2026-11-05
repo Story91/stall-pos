@@ -91,7 +91,7 @@ The hard part of an agent that handles money is not the model, it is everything 
 1. Open https://stall-ashen.vercel.app and enter PIN `1234`.
 2. On **Sell**, type `two tacos al pastor and an agua fresca` (or hold the mic and say it), tap **Read order**, then **Charge**.
 3. Open the QR or the pay link and pay on PayPal's sandbox page with **Debit or Credit Card** (use a test card from the Credit Card Generator in your PayPal Developer Dashboard) or with any sandbox Personal account. Within a few seconds Sell shows **Paid**. To skip PayPal, tap **Paid in cash**.
-4. Open **Day**, then **Close the day**, then **Run close now**. Maria's $120 shift is paid through PayPal Payouts. The tortilla bill is held as a possible duplicate.
+4. Open **Today**, then **Close the day**, then **Run close now**. Maria's $120 shift is paid through PayPal Payouts. The tortilla bill is held as a possible duplicate.
 5. Tap **Mark as already paid**, then **Run close again**: nothing is paid twice.
 6. Open **History** and type `cash sales over $20 this week`: the AG Grid ledger filters itself and the totals row updates.
 

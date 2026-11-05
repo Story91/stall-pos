@@ -16,7 +16,7 @@ No login is needed to pay: PayPal's sandbox invoice page accepts **Debit or Cred
 2. Type the order in the text box, for example `two tacos al pastor and an agua fresca`, tap **Read order**, check the items, tap **Charge**.
 3. A PayPal invoice QR appears with "Waiting for payment". Scan it, or tap **Copy pay link** and open it in another browser, then pay with **Debit or Credit Card** (sandbox test card) or a sandbox PayPal account. Or tap **Paid in cash** to finish the sale without PayPal.
 4. As soon as PayPal reports the invoice paid, Sell flips to a full-screen **Paid**.
-5. Open **Day**. Today's sales, tax and tips are listed, and two obligations are already logged: Maria's shift and a tortillas bill.
+5. Open **Today**. Today's sales, tax and tips are listed, and two obligations are already logged: Maria's shift and a tortillas bill.
 6. Tap **Close the day** (you land on **Close**).
    - Maria's $120 shift is paid through PayPal Payouts, with a one-sentence reason.
    - The tortillas bill is **held**: it looks like a bill paid two days ago. The decision card shows both bills.

@@ -19,7 +19,7 @@ export const es: Messages = {
   nav: {
     label: "Pantallas",
     sell: "Vender",
-    day: "Día",
+    day: "Hoy",
     close: "Cierre",
     history: "Historial",
     settings: "Ajustes",
@@ -127,7 +127,7 @@ export const es: Messages = {
   },
   totals: {
     label: "Totales de hoy",
-    tookIn: (n: number) => `Ingresos de ${n} ${onePlural(n, "venta", "ventas")}`,
+    tookIn: (n: number) => (n === 0 ? "Todavía no hay ventas" : `Ingresos de ${n} ${onePlural(n, "venta", "ventas")}`),
     beforeTax: "Sin impuesto",
     tax: "Impuesto",
     tips: "Propinas",
@@ -174,7 +174,7 @@ export const es: Messages = {
       PENDING: "Enviando",
       SUCCESS: "Pagado",
       FAILED: "Falló",
-      UNCLAIMED: "Sin cobrar aún",
+      UNCLAIMED: "No reclamado aún",
     },
   },
   close: {
@@ -297,7 +297,7 @@ export const es: Messages = {
       PENDING: "Enviando",
       SUCCESS: "Enviado",
       FAILED: "Falló",
-      UNCLAIMED: "Sin cobrar",
+      UNCLAIMED: "No reclamado",
     },
     total: "Total",
     net: (amount: string) => `Neto ${amount}`,

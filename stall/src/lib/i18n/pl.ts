@@ -20,7 +20,7 @@ export const pl: Messages = {
   nav: {
     label: "Ekrany",
     sell: "Sprzedaż",
-    day: "Dzień",
+    day: "Dzisiaj",
     close: "Zamknięcie",
     history: "Historia",
     settings: "Ustawienia",
@@ -130,7 +130,8 @@ export const pl: Messages = {
   },
   totals: {
     label: "Dzisiejsze sumy",
-    tookIn: (n: number) => `Utarg: ${n} ${plPlural(n, "sprzedaż", "sprzedaże", "sprzedaży")}`,
+    tookIn: (n: number) =>
+      n === 0 ? "Jeszcze nic nie sprzedano" : `Utarg: ${n} ${plPlural(n, "sprzedaż", "sprzedaże", "sprzedaży")}`,
     beforeTax: "Bez podatku",
     tax: "Podatek",
     tips: "Napiwki",

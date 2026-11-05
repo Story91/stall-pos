@@ -19,7 +19,7 @@ export const en = {
   nav: {
     label: "Screens",
     sell: "Sell",
-    day: "Day",
+    day: "Today",
     close: "Close",
     history: "History",
     settings: "Settings",
@@ -126,7 +126,7 @@ export const en = {
   },
   totals: {
     label: "Today's totals",
-    tookIn: (n: number) => `Took in from ${n} ${onePlural(n, "sale", "sales")}`,
+    tookIn: (n: number) => (n === 0 ? "No sales yet" : `Took in from ${n} ${onePlural(n, "sale", "sales")}`),
     beforeTax: "Before tax",
     tax: "Tax",
     tips: "Tips",

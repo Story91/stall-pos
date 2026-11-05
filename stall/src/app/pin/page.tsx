@@ -116,14 +116,7 @@ export default function PinPage() {
         {KEYS.map((key) => (
           <Key key={key} label={key} onPress={() => press(key)} />
         ))}
-        <button
-          type="button"
-          onClick={() => void submit(digits)}
-          disabled={digits.length < MIN || state === "checking"}
-          className="min-h-20 rounded-2xl bg-marigold text-xl font-bold text-ink disabled:opacity-40"
-        >
-          {t.pin.unlock}
-        </button>
+        <span aria-hidden />
         <Key label="0" onPress={() => press("0")} />
         <button
           type="button"
@@ -134,6 +127,14 @@ export default function PinPage() {
           <svg aria-hidden viewBox="0 0 24 24" className="size-8" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 5h11v14H9l-6-7zM13 9.5l5 5M18 9.5l-5 5" />
           </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => void submit(digits)}
+          disabled={digits.length < MIN || state === "checking"}
+          className="col-span-3 min-h-16 rounded-2xl bg-ink text-xl font-bold text-paper disabled:border-2 disabled:border-dashed disabled:border-ink disabled:bg-transparent disabled:text-ink"
+        >
+          {t.pin.unlock}
         </button>
       </div>
     </main>

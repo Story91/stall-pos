@@ -24,12 +24,11 @@ export function TotalsStrip({ totals }: { totals: DayTotals }) {
         <Figure label={t.totals.tips} cents={totals.tipCents} />
       </dl>
       <div className="flex flex-col gap-2">
-        <div
-          aria-hidden
-          className="flex h-4 overflow-hidden rounded-full bg-paper"
-        >
-          <span className="bg-marigold" style={{ width: `${paypalShare}%` }} />
-        </div>
+        {totals.totalCents > 0 && (
+          <div aria-hidden className="flex h-4 overflow-hidden rounded-full bg-paper">
+            <span className="bg-marigold" style={{ width: `${paypalShare}%` }} />
+          </div>
+        )}
         <dl className="flex justify-between text-lg">
           <div>
             <dt className="text-paper/80">{t.totals.paypal}</dt>
