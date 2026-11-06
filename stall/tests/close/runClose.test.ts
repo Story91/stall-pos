@@ -211,7 +211,7 @@ describe("runClose on the demo day", () => {
     // Facts come from code; the model's text is only the agent's note.
     expect(result.summary).toContain("Paid 1 ($120.00 total): Maria $120.00.");
     expect(result.summary).toContain(
-      "1 need your decision: Tortillería Rosa $240.00 (Possible duplicate",
+      "1 needs your decision: Tortillería Rosa $240.00 (Possible duplicate",
     );
     expect(result.agentNote).toBe("Paid Maria. Rosa needs a look.");
 

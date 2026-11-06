@@ -50,7 +50,7 @@ const en: CloseMessages = {
   summary: {
     closed: (date) => `Closed ${sayDate(date, "en-US")}.`,
     paid: (count, total, names) => `Paid ${count} (${total} total): ${names}.`,
-    needDecision: (count, names) => `${count} need your decision: ${names}.`,
+    needDecision: (count, names) => `${count} ${onePlural(count, "needs", "need")} your decision: ${names}.`,
     failed: (count, names) => `${count} could not be paid and will be retried: ${names}.`,
     skipped: (count) => `${count} already handled.`,
     nothing: "Nothing to pay today.",

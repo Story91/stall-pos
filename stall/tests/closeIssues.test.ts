@@ -46,12 +46,12 @@ describe("summarySentences", () => {
   it("splits the code-built summary into a headline and facts", () => {
     expect(
       summarySentences(
-        "Closed November 4. Paid 1 ($120.00 total): Maria $120.00. 1 need your decision: Rosa $240.00 (Possible duplicate: a $240.00 bill). Nothing else.",
+        "Closed November 4. Paid 1 ($120.00 total): Maria $120.00. 1 needs your decision: Rosa $240.00 (Possible duplicate: a $240.00 bill). Nothing else.",
       ),
     ).toEqual([
       "Closed November 4.",
       "Paid 1 ($120.00 total): Maria $120.00.",
-      "1 need your decision: Rosa $240.00 (Possible duplicate: a $240.00 bill).",
+      "1 needs your decision: Rosa $240.00 (Possible duplicate: a $240.00 bill).",
       "Nothing else.",
     ]);
   });

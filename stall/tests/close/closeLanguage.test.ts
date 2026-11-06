@@ -123,7 +123,7 @@ describe("deterministicSummary in the owner's language", () => {
   it("is unchanged in English", () => {
     expect(deterministicSummary(TODAY, stateFor("en"), [], 2)).toBe(
       "Closed November 4. Paid 1 ($120.00 total): Maria $120.00. " +
-        "1 need your decision: Tortillería Rosa $240.00 (Possible duplicate: a $240.00 bill for Tortillería Rosa was already paid on November 2). " +
+        "1 needs your decision: Tortillería Rosa $240.00 (Possible duplicate: a $240.00 bill for Tortillería Rosa was already paid on November 2). " +
         "2 already handled.",
     );
   });
