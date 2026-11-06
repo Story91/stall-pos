@@ -34,6 +34,25 @@ describe("decideAccess", () => {
     expect(decideAccess("/api/close", "?key=x", false)).toBe("allow");
   });
 
+  it("schedules every Vercel Cron path on a route the proxy lets a bearer through", () => {
+    const { crons } = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons: { path: string; schedule: string }[] };
+    expect(crons).toEqual(
+      expect.arrayContaining([
+        { path: "/api/close", schedule: "0 2 * * *" },
+        // 07:00 UTC is 01:00-02:00 in Chicago: a fresh demo day right after midnight.
+        { path: "/api/reset-demo", schedule: "0 7 * * *" },
+      ]),
+    );
+    for (const { path } of crons) expect(decideAccess(path, "", false, true), path).toBe("allow");
+  });
+
+  it("lets the nightly demo reset reach /api/reset-demo with a bearer or key; the route checks it", () => {
+    expect(decideAccess("/api/reset-demo", "", false, true)).toBe("allow");
+    expect(decideAccess("/api/reset-demo", "?key=x", false)).toBe("allow");
+    expect(decideAccess("/api/reset-demo", "", false, false)).toBe("unauthorized");
+    expect(decideAccess("/api/reset-demo/x", "", false, true)).toBe("unauthorized");
+  });
+
   it("does not let lookalike paths borrow a public prefix", () => {
     expect(decideAccess("/api/paypal/webhook-admin", "", false)).toBe("unauthorized");
     expect(decideAccess("/api/pins", "", false)).toBe("unauthorized");

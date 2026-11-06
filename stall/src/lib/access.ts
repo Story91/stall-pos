@@ -5,13 +5,16 @@ export type Access = "allow" | "redirect" | "unauthorized";
 /** API routes that authenticate themselves (PayPal signature, the PIN check) or carry no private data. */
 const PUBLIC_API = new Set(["/api/paypal/webhook", "/api/events", "/api/health", "/api/pin"]);
 
+/** Routes a scheduler calls: the nightly close and the nightly demo reset. Each route checks the credential itself. */
+const SCHEDULED_API = new Set(["/api/close", "/api/reset-demo"]);
+
 export function decideAccess(pathname: string, search: string, hasValidCookie: boolean, hasAuthHeader = false): Access {
   if (pathname === "/pin") return "allow";
   if (hasValidCookie) return "allow";
   if (PUBLIC_API.has(pathname)) return "allow";
-  // The external scheduler: the close route itself checks the key against CLOSE_TRIGGER_KEY.
+  // The external scheduler: the route itself checks the key against CLOSE_TRIGGER_KEY.
   // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`; the route validates it too.
-  if (pathname === "/api/close" && (new URLSearchParams(search).has("key") || hasAuthHeader)) return "allow";
+  if (SCHEDULED_API.has(pathname) && (new URLSearchParams(search).has("key") || hasAuthHeader)) return "allow";
   if (pathname === "/api" || pathname.startsWith("/api/")) return "unauthorized";
   return "redirect";
 }

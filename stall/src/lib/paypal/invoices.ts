@@ -201,6 +201,16 @@ export async function recordCashPayment(
   });
 }
 
+/** Cancels an unpaid invoice so the customer can no longer pay it; nobody is emailed. */
+export async function cancelInvoice(invoiceId: string, requestId: string): Promise<void> {
+  await paypalFetch({
+    method: "POST",
+    path: `/v2/invoicing/invoices/${invoiceId}/cancel`,
+    body: { send_to_invoicer: false, send_to_recipient: false },
+    requestId,
+  });
+}
+
 export async function getInvoiceStatus(invoiceId: string): Promise<string> {
   const invoice = parseResponse(
     invoiceStatusSchema,

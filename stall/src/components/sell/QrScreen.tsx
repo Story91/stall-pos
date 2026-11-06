@@ -17,6 +17,9 @@ export type QrScreenProps = {
   /** Called once, when the sale first shows as paid (sound and vibration live here). */
   onPaid(): void;
   onNewSale(): void;
+  cancelPending: boolean;
+  /** Cancels the open invoice, then starts a new sale. */
+  onCancelSale(): void;
 };
 
 export function QrScreen(props: QrScreenProps) {
@@ -43,9 +46,12 @@ function WaitingView({
   cashError,
   onCash,
   onNewSale,
+  cancelPending,
+  onCancelSale,
 }: QrScreenProps) {
   const t = useT();
   const [confirmingCash, setConfirmingCash] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [copied, setCopied] = useState(false);
   const total = formatCents(totalCents);
   const cancelled = status === "cancelled";
@@ -129,13 +135,46 @@ function WaitingView({
             {cashError}
           </p>
         )}
-        <button
-          type="button"
-          onClick={onNewSale}
-          className="min-h-14 rounded-xl px-4 text-lg font-medium text-graphite underline underline-offset-4"
-        >
-          {t.qr.differentSale}
-        </button>
+        {cancelled ? (
+          <button
+            type="button"
+            onClick={onNewSale}
+            className="min-h-14 rounded-xl px-4 text-lg font-medium text-graphite underline underline-offset-4"
+          >
+            {t.qr.differentSale}
+          </button>
+        ) : confirmingCancel ? (
+          <div className="flex flex-col gap-2 rounded-2xl bg-wash p-3">
+            <p className="text-lg font-medium">{t.qr.cancelQuestion}</p>
+            <button
+              type="button"
+              disabled={cancelPending}
+              onClick={onCancelSale}
+              className="min-h-14 rounded-xl bg-ink px-4 text-xl font-semibold text-paper disabled:opacity-60"
+            >
+              {cancelPending ? t.qr.cancelling : t.qr.cancelYes}
+            </button>
+            <button
+              type="button"
+              disabled={cancelPending}
+              onClick={() => setConfirmingCancel(false)}
+              className="min-h-14 rounded-xl px-4 text-lg font-medium"
+            >
+              {t.qr.keepWaiting}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmingCash(false);
+              setConfirmingCancel(true);
+            }}
+            className="min-h-14 rounded-xl px-4 text-lg font-medium text-graphite underline underline-offset-4"
+          >
+            {t.qr.differentSale}
+          </button>
+        )}
       </div>
     </section>
   );

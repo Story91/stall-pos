@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { PAYOUT_POLL_MS } from "@/hooks/useClose";
 import type { BillDraft, BillInput } from "@/components/day/BillLogger";
 import type { MicState } from "@/components/sell/MicButton";
 import { failureText, ownerCall, send } from "@/lib/owner/api";
 import type { BusinessView, DayView, PayeeRow } from "@/lib/owner/types";
 import { messagesFor } from "@/lib/i18n";
 import { useLanguage } from "@/lib/i18n/useT";
+import type { Language } from "@/lib/parse/schema";
 import { readLanguage } from "@/lib/sell/languageStore";
 import { isRecognitionSupported, startTranscription, type TranscriptionHandle } from "@/lib/voice/transcribe";
 
@@ -20,8 +22,11 @@ export type ShiftSuggestion = { payeeId: string; name: string };
 const noopSubscribe = () => () => {};
 
 type Loaded =
-  | { ok: true; business: BusinessView; payees: PayeeRow[]; day: DayView }
+  | { ok: true; business: BusinessView; payees: PayeeRow[]; day: DayView; language: Language }
   | { ok: false; message: string };
+
+/** The day, with payout reasons worded in `language`. */
+const dayUrl = (date: string, language: Language) => `/api/day/${date}?language=${language}`;
 
 async function fetchDayScreen(): Promise<Loaded> {
   const [biz, people] = await Promise.all([
@@ -32,9 +37,9 @@ async function fetchDayScreen(): Promise<Loaded> {
   const language = readLanguage();
   if (!biz.ok) return { ok: false, message: failureText(biz, language) };
   if (!people.ok) return { ok: false, message: failureText(people, language) };
-  const day = await ownerCall<DayView>(`/api/day/${biz.data.today}`);
+  const day = await ownerCall<DayView>(dayUrl(biz.data.today, language));
   if (!day.ok) return { ok: false, message: failureText(day, language) };
-  return { ok: true, business: biz.data, payees: people.data, day: day.data };
+  return { ok: true, business: biz.data, payees: people.data, day: day.data, language };
 }
 
 /** Everything the Day screen reads and does: today's sales, shifts, bills, payouts, decisions. */
@@ -59,9 +64,14 @@ export function useDay() {
   const [suggestion, setSuggestion] = useState<ShiftSuggestion | null>(null);
   const handle = useRef<TranscriptionHandle | null>(null);
 
+  // The language the shown day was worded in; a switch refetches it.
+  const shownLanguage = useRef<Language | null>(null);
+
   const refreshDay = useCallback(async (date: string) => {
-    const result = await ownerCall<DayView>(`/api/day/${date}`);
+    const wanted = readLanguage();
+    const result = await ownerCall<DayView>(dayUrl(date, wanted));
     if (result.ok) {
+      shownLanguage.current = wanted;
       setDay(result.data);
       setLoadError(null);
     } else setLoadError(failureText(result, readLanguage()));
@@ -69,6 +79,7 @@ export function useDay() {
 
   const apply = useCallback((loaded: Loaded) => {
     if (!loaded.ok) return setLoadError(loaded.message);
+    shownLanguage.current = loaded.language;
     setBusiness(loaded.business);
     setPayees(loaded.payees);
     setDay(loaded.day);
@@ -79,6 +90,21 @@ export function useDay() {
     void fetchDayScreen().then(apply);
     return () => handle.current?.stop();
   }, [apply]);
+
+  useEffect(() => {
+    if (!business || shownLanguage.current === null || shownLanguage.current === language) return;
+    void refreshDay(business.today);
+  }, [language, business, refreshDay]);
+
+  // While a payout is still sending, ask again every few seconds (the day view
+  // asks PayPal for its status), so "Sending" turns into "Paid" without a reload.
+  const today = business?.today ?? null;
+  const sending = day?.payouts.some((p) => p.status === "PENDING") ?? false;
+  useEffect(() => {
+    if (!sending || !today) return;
+    const timer = setInterval(() => void refreshDay(today), PAYOUT_POLL_MS);
+    return () => clearInterval(timer);
+  }, [sending, today, refreshDay]);
 
   const mark = (payeeId: string, on: boolean) =>
     setBusy((current) => {

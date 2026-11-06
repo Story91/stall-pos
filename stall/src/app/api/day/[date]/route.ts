@@ -12,7 +12,7 @@ export async function GET(
   try {
     requireOwner(request);
     const { date } = await context.params;
-    return Response.json(await dayFor(db, date));
+    return Response.json(await dayFor(db, date, Object.fromEntries(new URL(request.url).searchParams)));
   } catch (error) {
     return toResponse(error);
   }

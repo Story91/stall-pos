@@ -4,6 +4,8 @@ import type { Db } from "@/db";
 import { payees } from "@/db/schema";
 import { ApiError } from "@/lib/apiError";
 import { runClose, type RunCloseDeps } from "@/lib/close/runClose";
+import type { TranslateDeps } from "@/lib/close/translate";
+import { localizeCloseView, localPayoutTexts } from "@/lib/close/view";
 import { businessDate, daysAgo } from "@/lib/dates";
 import { reconcileDay, type LedgerPayout, type LedgerSale, type ReconcileReport } from "@/lib/close/reconcile";
 import { listTransactions, type PayPalTxn } from "@/lib/paypal/reporting";
@@ -123,14 +125,37 @@ export async function closeDay(
   return runClose(db, deps, { businessId: business.id, date, language: input.language });
 }
 
-export async function closeViewFor(db: Db, date: string) {
+/** `?language=` for the close view: the owner's current language, whatever the close ran in. */
+export const closeViewQuery = z.object({ language: ownerLanguage });
+
+/** The close of `date`, worded in the owner's language; `deps.model` translates the agent's words (tests inject a fake). */
+export async function closeViewFor(db: Db, date: string, query: unknown = {}, deps: TranslateDeps = {}) {
+  const { language } = closeViewQuery.parse(query);
+  const day = parseDate(date);
   const business = await getBusiness(db);
-  return getCloseView(db, business.id, parseDate(date), business.tz);
+  const view = await getCloseView(db, business.id, day, business.tz);
+  return localizeCloseView(db, view, language, deps);
 }
 
-export async function dayFor(db: Db, date: string) {
+/** `?language=` for the Day screen: payout reasons follow the owner's current language. */
+export const dayQuery = closeViewQuery;
+
+export async function dayFor(db: Db, date: string, query: unknown = {}) {
+  const { language } = dayQuery.parse(query);
+  const day = parseDate(date);
   const business = await getBusiness(db);
-  return getDay(db, business.id, parseDate(date), business.tz);
+  const view = await getDay(db, business.id, day, business.tz);
+  const texts = await localPayoutTexts(
+    db,
+    business.id,
+    view.payouts.map((p) => {
+      const bill = view.bills.find((b) => b.id === p.billId);
+      const shift = view.shifts.find((s) => s.id === p.shiftId);
+      return { ...p, runDate: shift?.date ?? bill?.date ?? day, billNote: bill?.note ?? null };
+    }),
+    language,
+  );
+  return { ...view, payouts: view.payouts.map((p) => ({ ...p, rationale: texts.get(p.id) ?? p.rationale })) };
 }
 
 const FAILURE_STATUS: Record<string, number> = {
@@ -166,7 +191,7 @@ export async function decide(
 }
 
 export type ReconcileResponse =
-  | ({ available: true } & ReconcileReport)
+  | ({ available: true; cashCents: number; demoSales: number } & ReconcileReport)
   | { available: false; reason: "paypal" | "future" };
 
 /**
@@ -221,5 +246,14 @@ export async function reconcileFor(
       return { available: false, reason: "paypal" };
     }
   }
-  return { available: true, ...reconcileDay({ date, tz: business.tz, sales, payouts: ledgerPayouts, txns, now }) };
+  // Cash never passes through PayPal; it is shown next to the check so the totals still add up with Today.
+  const cashCents = day.sales.filter((s) => s.status === "paid_cash").reduce((sum, s) => sum + s.totalCents, 0);
+  // Seeded demo sales were never charged through PayPal; say so instead of silently leaving them out.
+  const demoSales = day.sales.filter((s) => s.status === "paid" && s.invoiceId?.startsWith("INV2-SEED-")).length;
+  return {
+    available: true,
+    cashCents,
+    demoSales,
+    ...reconcileDay({ date, tz: business.tz, sales, payouts: ledgerPayouts, txns, now }),
+  };
 }

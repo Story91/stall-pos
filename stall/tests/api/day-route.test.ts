@@ -60,19 +60,26 @@ afterAll(async () => {
 });
 
 describe("GET /api/day/:date sales", () => {
-  it("shows none of the seeded history as today, with zero totals", async () => {
+  // The seed adds today's sales paid so far (none before lunch in Chicago) on top of a week of history.
+  let seededToday: { count: number; totalCents: number };
+
+  it("shows only the seeded sales paid today, none of the earlier history", async () => {
+    const rows = await db.select().from(sales);
+    const paidToday = rows.filter((s) => s.paidAt && businessDate(s.paidAt, TZ) === today);
+    expect(paidToday.length).toBeLessThan(rows.length);
+    seededToday = { count: paidToday.length, totalCents: paidToday.reduce((sum, s) => sum + s.totalCents, 0) };
     const day = await dayOf(today);
-    expect(day.sales).toHaveLength(0);
-    expect(day.totals.count).toBe(0);
-    expect(day.totals.totalCents).toBe(0);
+    expect(day.sales).toHaveLength(seededToday.count);
+    expect(day.totals.count).toBe(seededToday.count);
+    expect(day.totals.totalCents).toBe(seededToday.totalCents);
   });
 
   it("shows a sale paid today", async () => {
     const now = new Date();
     await db.insert(sales).values({ ...base, businessId, draftId: "day-1", createdAt: now, paidAt: now });
     const day = await dayOf(today);
-    expect(day.sales).toHaveLength(1);
-    expect(day.totals).toMatchObject({ count: 1, totalCents: 1083 });
+    expect(day.sales).toHaveLength(seededToday.count + 1);
+    expect(day.totals).toMatchObject({ count: seededToday.count + 1, totalCents: seededToday.totalCents + 1083 });
   });
 
   it("counts a sale created yesterday but paid today on today, not yesterday", async () => {
@@ -87,8 +94,8 @@ describe("GET /api/day/:date sales", () => {
       paidAt: now,
     });
     const day = await dayOf(today);
-    expect(day.sales).toHaveLength(2);
-    expect(day.totals.count).toBe(2);
+    expect(day.sales).toHaveLength(seededToday.count + 2);
+    expect(day.totals.count).toBe(seededToday.count + 2);
     expect((await dayOf(yesterday)).sales).toHaveLength(yesterdayBefore);
   });
 });

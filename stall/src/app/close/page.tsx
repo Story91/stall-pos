@@ -7,7 +7,7 @@ import { PayoutsList } from "@/components/close/PayoutsList";
 import { ErrorBox, Screen, ScreenHeader, SectionTitle, Spinner } from "@/components/ui";
 import { useClose, type RunNotice } from "@/hooks/useClose";
 import { useLanguage, useT } from "@/lib/i18n/useT";
-import { failedPayouts } from "@/lib/owner/closeIssues";
+import { everyDecisionHandled, failedPayouts } from "@/lib/owner/closeIssues";
 import { agentNote, summarySentences } from "@/lib/owner/text";
 import { payeeNames, type PayoutRow } from "@/lib/owner/types";
 import { longDate } from "@/lib/sell/format";
@@ -21,6 +21,8 @@ export default function ClosePage() {
   const decisions = [...(c.view?.decisions ?? [])].sort(
     (a, b) => Number(b.status === "open") - Number(a.status === "open"),
   );
+  // The summary says what the run asked for; once every decision is answered, nothing waits.
+  const handled = everyDecisionHandled(decisions);
   const note = run ? agentNote(run.log) : null;
   // Attempted but never sent: listed with the payouts so the summary's "could not be paid" has a row to point at.
   const failed: PayoutRow[] = run && c.view
@@ -77,6 +79,11 @@ export default function ClosePage() {
                 ))}
               </ul>
             )}
+            {handled && (
+              <p role="status" className="rounded-xl bg-wash px-3 py-2 text-xl font-semibold">
+                {t.close.allHandled}
+              </p>
+            )}
             <button
               type="button"
               onClick={c.replaySummary}
@@ -94,7 +101,7 @@ export default function ClosePage() {
 
           {decisions.length > 0 && (
             <section aria-labelledby="decisions" className="flex flex-col gap-3">
-              <SectionTitle id="decisions">{t.close.needsYou}</SectionTitle>
+              <SectionTitle id="decisions">{handled ? t.close.decided : t.close.needsYou}</SectionTitle>
               {decisions.map((decision) => (
                 <DecisionCard
                   key={decision.id}

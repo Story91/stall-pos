@@ -115,7 +115,7 @@ describe("sales service", () => {
     createAndSendInvoice.mockImplementationOnce(async () => ({
       invoiceId: "INV2-ROUND",
       payLink: "https://paypal.test/pay/1",
-      amountCents: 1491, // PayPal rounded the tax per line: one cent more than our 1490
+      amountCents: 1491, // PayPal disagrees with our 1490 by a cent: its total is what the customer pays
     }));
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const result = await chargeSale(db, deps, input("draft-round", { tipPct: 18 }));
@@ -140,6 +140,28 @@ describe("sales service", () => {
     warn.mockRestore();
     const [row] = await db.select().from(sales).where(eq(sales.id, result.saleId));
     expect(row).toMatchObject({ taxCents: 74, totalCents: 1490 });
+  });
+
+  it("agrees with PayPal on per-line tax: three drinks are 67 cents of tax, not 66", async () => {
+    const { deps, createAndSendInvoice } = fakes();
+    createAndSendInvoice.mockImplementationOnce(async () => ({
+      invoiceId: "INV2-DRINKS",
+      payLink: "https://paypal.test/pay/1",
+      // What PayPal bills: 25 + 25 + 17 cents of tax on 300 + 300 + 200.
+      amountCents: 867,
+    }));
+    const drinks: Line[] = [
+      { name: "Agua fresca", qty: 1, unitCents: 300, taxable: true },
+      { name: "Mexican Coke", qty: 1, unitCents: 300, taxable: true },
+      { name: "Bottled water", qty: 1, unitCents: 200, taxable: true },
+    ];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await chargeSale(db, deps, input("draft-drinks", { lines: drinks }));
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+    expect(result.totalCents).toBe(867);
+    const [row] = await db.select().from(sales).where(eq(sales.id, result.saleId));
+    expect(row).toMatchObject({ subtotalCents: 800, taxCents: 67, tipCents: 0, totalCents: 867 });
   });
 
   it("is idempotent on draftId: two charges, one row, one invoice", async () => {

@@ -46,14 +46,15 @@ export function useHistory() {
     const ticket = ++latest.current;
     setLoading(true);
     const { from, to } = rangeDates(which, today);
-    const result = await ownerCall<HistoryResponse>(`/api/history?from=${from}&to=${to}`);
+    // The payout reasons come back in the owner's language; a switch reloads the range.
+    const result = await ownerCall<HistoryResponse>(`/api/history?from=${from}&to=${to}&language=${language}`);
     if (ticket !== latest.current) return;
     setLoading(false);
     if (result.ok) {
       setData(result.data);
       setLoadError(null);
     } else setLoadError(failureText(result, readLanguage()));
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     // Deferred a tick so the first fetch never sets state during the effect itself.

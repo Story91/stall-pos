@@ -36,9 +36,11 @@ export type SaleCombo = {
   items: ReadonlyArray<readonly [name: string, qty: number]>;
   en: string;
   es: string;
+  /** How often this order comes up relative to the others: tacos and drinks sell most. */
+  weight: number;
 };
 
-// Realistic orders, cycled deterministically across the history days.
+// Realistic orders, picked deterministically (weighted) for every seeded sale.
 export const SALE_COMBOS: SaleCombo[] = [
   {
     items: [
@@ -47,6 +49,7 @@ export const SALE_COMBOS: SaleCombo[] = [
     ],
     en: "Three al pastor tacos and a horchata",
     es: "Tres tacos de pastor y una horchata",
+    weight: 6,
   },
   {
     items: [
@@ -55,6 +58,16 @@ export const SALE_COMBOS: SaleCombo[] = [
     ],
     en: "One burrito and a Mexican Coke",
     es: "Un burrito y una coca de vidrio",
+    weight: 5,
+  },
+  {
+    items: [
+      ["Taco al pastor", 2],
+      ["Agua fresca", 1],
+    ],
+    en: "Two tacos al pastor and an agua fresca",
+    es: "Dos tacos de pastor y un agua fresca",
+    weight: 6,
   },
   {
     items: [
@@ -63,6 +76,7 @@ export const SALE_COMBOS: SaleCombo[] = [
     ],
     en: "Two quesadillas and two agua frescas",
     es: "Dos quesadillas y dos aguas frescas",
+    weight: 3,
   },
   {
     items: [
@@ -72,6 +86,7 @@ export const SALE_COMBOS: SaleCombo[] = [
     ],
     en: "Two carnitas tacos, two barbacoa tacos and an elote",
     es: "Dos tacos de carnitas, dos de barbacoa y un elote",
+    weight: 3,
   },
   {
     items: [
@@ -81,6 +96,7 @@ export const SALE_COMBOS: SaleCombo[] = [
     ],
     en: "A torta with chips and salsa and a horchata",
     es: "Una torta con totopos y una horchata",
+    weight: 3,
   },
   {
     items: [
@@ -89,6 +105,7 @@ export const SALE_COMBOS: SaleCombo[] = [
     ],
     en: "Four al pastor tacos and two Mexican Cokes",
     es: "Cuatro tacos de pastor y dos cocas de vidrio",
+    weight: 3,
   },
   {
     items: [
@@ -97,6 +114,7 @@ export const SALE_COMBOS: SaleCombo[] = [
     ],
     en: "Two churros and two horchatas",
     es: "Dos churros y dos horchatas",
+    weight: 2,
   },
   {
     items: [
@@ -106,5 +124,97 @@ export const SALE_COMBOS: SaleCombo[] = [
     ],
     en: "Two burritos, chips and salsa, and two agua frescas",
     es: "Dos burritos, unos totopos y dos aguas frescas",
+    weight: 2,
+  },
+  {
+    items: [["Taco de carnitas", 3]],
+    en: "Three carnitas tacos",
+    es: "Tres tacos de carnitas",
+    weight: 4,
+  },
+  {
+    items: [
+      ["Burrito", 1],
+      ["Bottled water", 1],
+    ],
+    en: "A burrito and a bottle of water",
+    es: "Un burrito y una botella de agua",
+    weight: 3,
+  },
+  {
+    items: [
+      ["Taco de barbacoa", 3],
+      ["Mexican Coke", 1],
+    ],
+    en: "Three barbacoa tacos and a Mexican Coke",
+    es: "Tres tacos de barbacoa y una coca",
+    weight: 3,
+  },
+  {
+    items: [
+      ["Quesadilla", 1],
+      ["Horchata", 1],
+    ],
+    en: "A quesadilla and a horchata",
+    es: "Una quesadilla y una horchata",
+    weight: 3,
+  },
+  {
+    items: [
+      ["Elote", 2],
+      ["Agua fresca", 1],
+    ],
+    en: "Two elotes and an agua fresca",
+    es: "Dos elotes y un agua fresca",
+    weight: 2,
+  },
+  {
+    items: [
+      ["Torta", 1],
+      ["Mexican Coke", 1],
+    ],
+    en: "One torta and a Mexican Coke",
+    es: "Una torta y una coca de vidrio",
+    weight: 2,
+  },
+  {
+    items: [
+      ["Taco al pastor", 6],
+      ["Taco de carnitas", 4],
+      ["Chips and salsa", 2],
+      ["Horchata", 3],
+      ["Agua fresca", 2],
+    ],
+    en: "Six pastor, four carnitas, two chips and salsa, three horchatas and two agua frescas",
+    es: "Seis de pastor, cuatro de carnitas, dos totopos, tres horchatas y dos aguas frescas",
+    weight: 1,
+  },
+  {
+    items: [
+      ["Agua fresca", 1],
+      ["Mexican Coke", 1],
+      ["Bottled water", 1],
+    ],
+    en: "An agua fresca, a Mexican Coke and a bottle of water",
+    es: "Un agua fresca, una coca y una botella de agua",
+    weight: 2,
+  },
+  {
+    items: [
+      ["Churros", 1],
+      ["Elote", 1],
+    ],
+    en: "Churros and an elote",
+    es: "Unos churros y un elote",
+    weight: 2,
+  },
+  {
+    items: [
+      ["Burrito", 3],
+      ["Mexican Coke", 3],
+    ],
+    en: "Three burritos and three Mexican Cokes",
+    es: "Tres burritos y tres cocas de vidrio",
+    weight: 1,
   },
 ];

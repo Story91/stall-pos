@@ -39,9 +39,11 @@ export type CloseState = {
   locks: Map<string, Promise<unknown>>;
   /** Read-only PayPal Agent Toolkit lookup; absent in tests and mock mode. */
   invoices?: InvoiceLookup | null;
+  /** The rules' reason for each obligation in every language, so screens can show the owner's current one. */
+  reasons?: Map<string, Record<Language, string>>;
 };
 
-const MAX_RATIONALE = 300;
+export const MAX_RATIONALE = 300;
 const MAX_LABEL = 60;
 
 export function formatCents(cents: number): string {
@@ -180,7 +182,14 @@ export function holdObligation(
           date: state.date,
           type: outcome.decisionType ?? "escalated",
           reason,
-          source: { obligation, evidence: outcome.evidence ?? null, rulesReason: reason, agentRationale },
+          source: {
+            obligation,
+            evidence: outcome.evidence ?? null,
+            rulesReason: reason,
+            agentRationale,
+            // The same verdict worded in each language; the close view shows the owner's current one.
+            ...(state.reasons?.has(obligationId) ? { reasons: state.reasons.get(obligationId) } : {}),
+          },
           shiftId: obligation.kind === "shift" ? obligation.id : null,
           billId: obligation.kind === "bill" ? obligation.id : null,
         })

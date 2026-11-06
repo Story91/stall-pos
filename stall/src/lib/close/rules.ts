@@ -115,12 +115,13 @@ function evaluateOne(obligation: Obligation, input: EvaluateInput, state: RunSta
   const existing = input.existingPayouts.find((p) =>
     obligation.kind === "shift" ? p.shiftId === obligation.id : p.billId === obligation.id,
   );
-  if (existing && (existing.status === "PENDING" || existing.status === "SUCCESS")) {
+  // UNCLAIMED money already left the business (PayPal holds it for the payee), for shifts and bills alike.
+  if (existing && (existing.status === "PENDING" || existing.status === "SUCCESS" || existing.status === "UNCLAIMED")) {
     return outcome("skip", r.payoutExists(obligation.kind, existing.status));
   }
 
   if (existing) {
-    // FAILED/UNCLAIMED/RETURNED: paying again reuses the same PayPal batch id, so a person must look first.
+    // FAILED (PayPal's RETURNED maps to it): paying again reuses the same batch id, so a person must look first.
     return outcome("hold", r.previousPayout(existing.status), {
       decisionType: "escalated",
     });

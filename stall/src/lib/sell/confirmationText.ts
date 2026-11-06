@@ -11,6 +11,16 @@ export function confirmationText(language: Language, cents: number): string {
       return `Pagado, ${amount} dólares. Gracias`;
     case "pl":
       // Polish reads a decimal comma naturally; a dot is spoken as "kropka".
-      return `Zapłacono, ${amount.replace(".", ",")} dolarów. Dziękuję`;
+      return `Zapłacono, ${amount.replace(".", ",")} ${polishDollars(cents)}. Dziękuję`;
   }
+}
+
+/** "12,99 dolara", "1 dolar", "2 dolary", "5 dolarów": a fraction always takes "dolara". */
+function polishDollars(cents: number): string {
+  if (cents % 100 !== 0) return "dolara";
+  const n = cents / 100;
+  if (n === 1) return "dolar";
+  const last = n % 10;
+  const lastTwo = n % 100;
+  return last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? "dolary" : "dolarów";
 }

@@ -86,6 +86,8 @@ export function MoneyCheck({ date, tz }: { date: string; tz?: string }) {
               </tr>
             </tbody>
           </table>
+          {report.cashCents > 0 && <p className="text-base text-graphite">{m.cash(formatCents(report.cashCents))}</p>}
+          {report.demoSales > 0 && <p className="text-base text-graphite">{m.demo(report.demoSales)}</p>}
 
           {report.status === "match" && (
             <p role="status" className="flex items-start gap-2 text-lg font-semibold">

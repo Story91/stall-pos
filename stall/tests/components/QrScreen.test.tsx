@@ -16,6 +16,8 @@ function props(overrides: Partial<QrScreenProps> = {}): QrScreenProps {
     onCash: () => {},
     onPaid: () => {},
     onNewSale: () => {},
+    cancelPending: false,
+    onCancelSale: () => {},
     ...overrides,
   };
 }
@@ -62,6 +64,31 @@ describe("QrScreen", () => {
 
     expect(screen.getByText("Cash")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "New sale" }));
+    expect(onNewSale).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks before cancelling the open invoice, and only then cancels", () => {
+    const onCancelSale = vi.fn();
+    const onNewSale = vi.fn();
+    render(<QrScreen {...props({ onCancelSale, onNewSale })} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start a different sale" }));
+    expect(onCancelSale).not.toHaveBeenCalled();
+    expect(screen.getByText(/Cancel this invoice?/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep waiting" }));
+    expect(screen.queryByText(/Cancel this invoice?/)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start a different sale" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, cancel it" }));
+    expect(onCancelSale).toHaveBeenCalledTimes(1);
+    expect(onNewSale).not.toHaveBeenCalled();
+  });
+
+  it("a cancelled invoice just starts a new sale", () => {
+    const onNewSale = vi.fn();
+    render(<QrScreen {...props({ status: "cancelled", onNewSale })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start a different sale" }));
     expect(onNewSale).toHaveBeenCalledTimes(1);
   });
 });

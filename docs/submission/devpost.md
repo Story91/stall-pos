@@ -44,7 +44,7 @@ The numbers back it up. New York City alone has about 23,000 street vendors, 96%
 
 **See the day.** The Day screen shows sales, tax, tips, cash versus PayPal, and every payout's status as PayPal reports it.
 
-**Ask your history.** The History screen is one ledger of sales and payouts on **AG Grid**, with filters, search, a totals row and CSV export. The owner can also just ask, by voice or text: "cash sales over $20 this week", "¿cuánto le pagué a Maria?". Claude turns the question into a filter for the grid, and the answer ("6 cash sales, $121.79") is computed by code from the rows it shows.
+**Ask your history.** The History screen is one ledger of sales and payouts on **AG Grid**, with filters, search, a totals row and CSV export. The owner can also just ask, by voice or text: "cash sales over $20 this week", "¿cuánto le pagué a Maria?". Claude turns the question into a filter for the grid, and the answer line (how many sales, and their total) is computed by code from the rows it shows, never by the model.
 
 **In the owner's language.** English, Spanish or Polish switches every screen, the close summary and the voice.
 
@@ -64,7 +64,7 @@ The numbers back it up. New York City alone has about 23,000 street vendors, 96%
 Most of these only showed up against the real sandbox:
 
 - **The invoice QR endpoint returns `multipart/form-data`**, not JSON, and answers `406` when the request asks for JSON. We parse the image part ourselves.
-- **PayPal rounds sales tax per line.** A ticket with several taxable lines can differ by a cent from one rounded total. Stall now treats PayPal's invoice total as authoritative.
+- **PayPal rounds sales tax per line.** A ticket with several taxable lines can differ by a cent from one rounded total. Stall now rounds tax per line the same way, so the Sell screen and the invoice agree to the cent, and PayPal's invoice total stays authoritative if they ever differ.
 - **Payout ids have length limits:** `sender_batch_id` up to 30 characters and `sender_item_id` up to 63. We use deterministic 30-character ids derived from each obligation, which also makes retries safe.
 - **Token scopes are fixed when the token is issued.** Enabling Invoicing on an app after the first token did nothing until we used a fresh app.
 - **Webhooks are not always there,** for example in a judge's local run. The app also asks PayPal for invoice and payout status while a screen is open, so Paid and payout status still update without a tunnel.
@@ -94,9 +94,9 @@ The hard part of an agent that handles money is not the model, it is everything 
 2. On **Sell**, type `two tacos al pastor and an agua fresca` (or hold the mic and say it), tap **Read order**, then **Charge**.
 3. Open the QR or the pay link and pay on PayPal's sandbox page with **Debit or Credit Card** (use a test card from the Credit Card Generator in your PayPal Developer Dashboard) or with any sandbox Personal account. Within a few seconds Sell shows **Paid**. To skip PayPal, tap **Paid in cash**.
 4. Open **Today**, then **Close the day**, then **Run close now**. Maria's $120 shift is paid through PayPal Payouts. The tortilla bill is held as a possible duplicate.
-5. Tap **Mark as already paid**, then **Run close again**: nothing is paid twice.
+5. Tap **Mark as already paid**, then **Yes, it's already paid** (nothing is sent), then **Run close again**: nothing is paid twice.
 6. Open **History** and type `cash sales over $20 this week`: the AG Grid ledger filters itself and the totals row updates.
 
-The hosted demo is shared by all judges. If the day is already closed when you arrive, open **Settings** and tap **Reset demo data** to start the demo day fresh.
+The hosted demo is shared by all judges. If the day is already closed when you arrive, open **Settings**, tap **Reset demo data**, then **Yes, reset** to start the demo day fresh. The demo also resets itself every night, shortly after midnight Chicago time.
 
 Everything runs in PayPal's sandbox. No real money moves.

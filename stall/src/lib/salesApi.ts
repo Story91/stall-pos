@@ -7,6 +7,7 @@ import { parseSale } from "@/lib/parse/parseSale";
 import { emit } from "@/lib/events";
 import { PayPalError } from "@/lib/paypal/client";
 import {
+  cancelInvoice,
   createAndSendInvoice,
   generateQr,
   getInvoiceStatus,
@@ -16,12 +17,15 @@ import {
   isMockEnabled,
   mockInvoices,
   mockParseSale,
+  mockCancelInvoice,
+  mockGetInvoiceStatus,
   mockRecordCashPayment,
 } from "@/lib/paypal/mock";
 import {
   chargeSale,
   getBusiness,
   getSale,
+  markCancelled,
   markPaid,
   type ChargeResult,
   type SaleInvoices,
@@ -71,10 +75,17 @@ type Env = Record<string, string | undefined>;
 export function invoiceDeps(env: Env = process.env): {
   invoices: SaleInvoices;
   recordCashPayment: typeof recordCashPayment;
+  cancelInvoice: typeof cancelInvoice;
+  getInvoiceStatus: typeof getInvoiceStatus;
 } {
   return isMockEnabled("PAYPAL_MOCK", env)
-    ? { invoices: mockInvoices, recordCashPayment: mockRecordCashPayment }
-    : { invoices: { createAndSendInvoice, generateQr }, recordCashPayment };
+    ? {
+        invoices: mockInvoices,
+        recordCashPayment: mockRecordCashPayment,
+        cancelInvoice: mockCancelInvoice,
+        getInvoiceStatus: mockGetInvoiceStatus,
+      }
+    : { invoices: { createAndSendInvoice, generateQr }, recordCashPayment, cancelInvoice, getInvoiceStatus };
 }
 
 /** The sale parser: the model, or the fixed smoke-test parser with PARSE_MOCK=1 (never in production). */
@@ -194,6 +205,49 @@ export async function payCash(
   const marked = await markPaid(db, sale.id, "cash", deps.now ?? new Date());
   return marked === "marked"
     ? { kind: "paid", status: "paid_cash" }
+    : { kind: "already_paid" };
+}
+
+export type CancelResult = { kind: "cancelled" } | { kind: "already_paid" } | { kind: "not_found" };
+
+const PAID_ON_PAYPAL = new Set(["PAID", "MARKED_AS_PAID"]);
+
+/**
+ * "Start a different sale": cancel the unpaid invoice so it cannot be paid later
+ * and the sale does not sit as "awaiting" forever. Never cancels money that
+ * arrived: PayPal is asked first, and again if it refuses the cancel.
+ */
+export async function cancelSale(
+  db: Db,
+  deps: {
+    getInvoiceStatus: (invoiceId: string) => Promise<string>;
+    cancelInvoice: (invoiceId: string, requestId: string) => Promise<void>;
+    now?: Date;
+  },
+  saleId: string,
+): Promise<CancelResult> {
+  const sale = await getSale(db, saleId);
+  if (!sale) return { kind: "not_found" };
+  if (sale.status === "paid" || sale.status === "paid_cash") return { kind: "already_paid" };
+  if (sale.status === "cancelled") return { kind: "cancelled" };
+
+  const paidMeanwhile = async () => {
+    await markPaid(db, sale.id, "paypal", deps.now ?? new Date());
+    emit({ type: "sale.paid", saleId: sale.id });
+    return { kind: "already_paid" } as const;
+  };
+
+  if (sale.invoiceId) {
+    if (PAID_ON_PAYPAL.has(await deps.getInvoiceStatus(sale.invoiceId))) return paidMeanwhile();
+    try {
+      await deps.cancelInvoice(sale.invoiceId, `${sale.draftId}-cancel`);
+    } catch (error) {
+      if (PAID_ON_PAYPAL.has(await deps.getInvoiceStatus(sale.invoiceId))) return paidMeanwhile();
+      throw error;
+    }
+  }
+  return (await markCancelled(db, sale.id)) === "cancelled"
+    ? { kind: "cancelled" }
     : { kind: "already_paid" };
 }
 

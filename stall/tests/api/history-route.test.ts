@@ -202,6 +202,8 @@ describe("GET /api/history", () => {
     expect((await GET(ownerRequest("?from=2026-01-01&to=2026-04-03"))).status).toBe(400);
     expect((await GET(ownerRequest("?from=2026-03-09"))).status).toBe(400);
     expect((await GET(ownerRequest("?from=2026-02-30&to=2026-03-09"))).status).toBe(400);
+    expect((await GET(ownerRequest("?from=2026-03-09&to=2026-03-10&language=de"))).status).toBe(400);
+    expect((await GET(ownerRequest("?from=2026-03-09&to=2026-03-10&language=pl"))).status).toBe(200);
   });
 
   it("requires the owner cookie", async () => {

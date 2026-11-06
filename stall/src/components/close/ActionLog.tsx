@@ -1,7 +1,7 @@
 "use client";
 
 import type { LogEntry } from "@/lib/owner/types";
-import { agentNote, nearDuplicate, plainText } from "@/lib/owner/text";
+import { agentNote, plainText } from "@/lib/owner/text";
 import { useLanguage, useT } from "@/lib/i18n/useT";
 import { clockTime } from "@/lib/sell/format";
 import { errorKind } from "@/lib/owner/closeIssues";
@@ -38,8 +38,8 @@ export function ActionLog({ log, names, tz }: Props) {
   // The note is shown once, above; its log entry and a repeat of it as the final text add nothing.
   const shown = log.filter((entry) => {
     if (entry.tool !== "model_text") return true;
-    const text = field(entry.input, "text");
-    return !(note && typeof text === "string" && nearDuplicate(text, note));
+    // The model's closing words restate its note (often paraphrased, or translated); the note is shown above.
+    return !note;
   });
   return (
     <ol className="flex flex-col">

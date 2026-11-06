@@ -16,6 +16,7 @@ import {
   generateQr,
   getInvoiceStatus,
   recordCashPayment,
+  cancelInvoice,
 } from "@/lib/paypal/invoices";
 
 const mockFetch = vi.mocked(paypalFetch);
@@ -307,6 +308,19 @@ describe("recordCashPayment", () => {
       path: "/v2/invoicing/invoices/INV2-AAAA/payments",
       body: { method: "CASH", amount: { currency_code: "USD", value: "14.50" } },
       requestId: "cash-1",
+    });
+  });
+});
+
+describe("cancelInvoice", () => {
+  it("cancels without emailing anyone", async () => {
+    mockFetch.mockResolvedValueOnce(undefined as never);
+    await cancelInvoice("INV2-AAAA", "cancel-1");
+    expect(mockFetch).toHaveBeenCalledWith({
+      method: "POST",
+      path: "/v2/invoicing/invoices/INV2-AAAA/cancel",
+      body: { send_to_invoicer: false, send_to_recipient: false },
+      requestId: "cancel-1",
     });
   });
 });

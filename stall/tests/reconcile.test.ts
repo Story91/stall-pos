@@ -36,6 +36,22 @@ describe("reconcileDay", () => {
     expect(r.other).toEqual([]);
   });
 
+  it("PayPal's column counts only what matches Stall; other activity is listed apart", () => {
+    const r = reconcileDay({
+      date, tz, now,
+      sales: [sale("a", 1250, "2026-11-04T18:00:00Z")],
+      payouts: [payout("p", 12000)],
+      txns: [
+        txn("t1", 1250, "2026-11-04T18:00:05Z", "STALL-a"),
+        txn("t3", -12000, "2026-11-04T20:00:10Z"),
+        // An earlier demo payout that Stall's database no longer knows about.
+        txn("t9", -12000, "2026-11-04T16:00:00Z"),
+      ],
+    });
+    expect(r.paypal).toEqual({ inCents: 1250, outCents: 12000 });
+    expect(r.other.map((o) => o.id)).toEqual(["t9"]);
+  });
+
   it("falls back to amount on the same day when PayPal gives no invoice reference", () => {
     const r = reconcileDay({
       date, tz, now, payouts: [],

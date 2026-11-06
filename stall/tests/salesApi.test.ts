@@ -11,6 +11,7 @@ import {
   createSale,
   parseTranscript,
   payCash,
+  cancelSale,
   resetReconcileThrottle,
   saleStatus,
   toResponse,
@@ -218,6 +219,56 @@ describe("sales API services", () => {
       expect(log).toHaveBeenCalledTimes(1);
       expect(String(log.mock.calls[0]![0])).toContain(saleId);
       log.mockRestore();
+    });
+  });
+
+  describe("cancelSale", () => {
+    const paypal = (status = "SENT") => ({
+      getInvoiceStatus: vi.fn(async () => status),
+      cancelInvoice: vi.fn(async () => {}),
+    });
+
+    it("cancels the PayPal invoice and marks the sale cancelled", async () => {
+      const { value } = deps();
+      const { saleId } = await createSale(db, value, body("api-cancel"));
+      const d = paypal();
+      expect(await cancelSale(db, d, saleId)).toEqual({ kind: "cancelled" });
+      const [row] = await db.select().from(sales).where(eq(sales.id, saleId));
+      expect(row!.status).toBe("cancelled");
+      expect(d.cancelInvoice).toHaveBeenCalledWith(row!.invoiceId, "api-cancel-cancel");
+    });
+
+    it("never cancels a sale the customer already paid; it records the payment instead", async () => {
+      const { value } = deps();
+      const { saleId } = await createSale(db, value, body("api-cancel2"));
+      const d = paypal("PAID");
+      expect(await cancelSale(db, d, saleId)).toEqual({ kind: "already_paid" });
+      expect(d.cancelInvoice).not.toHaveBeenCalled();
+      const [row] = await db.select().from(sales).where(eq(sales.id, saleId));
+      expect(row!.status).toBe("paid");
+    });
+
+    it("re-checks PayPal when the cancel is refused, and keeps a paid sale paid", async () => {
+      const { value } = deps();
+      const { saleId } = await createSale(db, value, body("api-cancel3"));
+      const d = paypal();
+      d.getInvoiceStatus.mockResolvedValueOnce("SENT").mockResolvedValueOnce("PAID");
+      d.cancelInvoice.mockRejectedValueOnce(new PayPalError("nope", 422, "{}", "dbg"));
+      expect(await cancelSale(db, d, saleId)).toEqual({ kind: "already_paid" });
+      const [row] = await db.select().from(sales).where(eq(sales.id, saleId));
+      expect(row!.status).toBe("paid");
+    });
+
+    it("a paid, cancelled or unknown sale never reaches PayPal", async () => {
+      const d = paypal();
+      expect(await cancelSale(db, d, "00000000-0000-0000-0000-000000000000")).toEqual({ kind: "not_found" });
+      const { value } = deps();
+      const { saleId } = await createSale(db, value, body("api-cancel4"));
+      await db.update(sales).set({ status: "paid_cash" }).where(eq(sales.id, saleId));
+      expect(await cancelSale(db, d, saleId)).toEqual({ kind: "already_paid" });
+      await db.update(sales).set({ status: "cancelled" }).where(eq(sales.id, saleId));
+      expect(await cancelSale(db, d, saleId)).toEqual({ kind: "cancelled" });
+      expect(d.cancelInvoice).not.toHaveBeenCalled();
     });
   });
 

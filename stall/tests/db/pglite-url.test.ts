@@ -62,5 +62,5 @@ describe("pglite:// database url", () => {
     const raw = openPglite("pglite://memory");
     opened.push(raw);
     await expect(raw.db.select().from(businesses)).rejects.toThrow();
-  });
+  }, 30_000); // PGlite boots slowly when the whole suite runs in parallel.
 });

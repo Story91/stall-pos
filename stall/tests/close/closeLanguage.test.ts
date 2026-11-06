@@ -101,7 +101,8 @@ describe("rules engine reasons in the owner's language", () => {
       const r = closeMessages(language).reasons;
       const en = closeMessages("en").reasons;
       expect(r.notAutoPay("Rosa")).not.toBe(en.notAutoPay("Rosa"));
-      expect(r.previousPayout("FAILED")).toContain("FAILED");
+      expect(r.previousPayout("FAILED")).not.toContain("FAILED");
+      expect(r.previousPayout("FAILED")).not.toBe(en.previousPayout("FAILED"));
       expect(r.overBusinessCap("$10.00", "$1,000.00")).toContain("$1,000.00");
       expect(r.alreadyEscalated).not.toBe(en.alreadyEscalated);
     }

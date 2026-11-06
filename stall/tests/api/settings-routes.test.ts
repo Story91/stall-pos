@@ -13,7 +13,7 @@ import { GET as businessGet, PATCH as businessPatch } from "@/app/api/business/r
 import { GET as catalogGet } from "@/app/api/catalog/route";
 import { GET as payeesGet } from "@/app/api/payees/route";
 import { PATCH as payeePatch } from "@/app/api/payees/[id]/route";
-import { POST as resetPost } from "@/app/api/reset-demo/route";
+import { GET as resetGet, POST as resetPost } from "@/app/api/reset-demo/route";
 import { ownerCookieValue } from "@/lib/auth";
 
 let db: Db;
@@ -39,6 +39,7 @@ beforeAll(async () => {
   vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-test");
   vi.stubEnv("OWNER_PIN", "1234");
   vi.stubEnv("CLOSE_TRIGGER_KEY", "close-key-for-tests");
+  vi.stubEnv("CRON_SECRET", "cron-secret-for-tests");
   owner = ownerCookieValue();
   const test = await createTestDb();
   db = test.db;
@@ -90,6 +91,51 @@ describe("settings routes", () => {
     expect(await res.json()).toEqual({ ok: true });
     expect(await (await businessGet(req("GET", "/api/business"))).json()).toMatchObject({ name: "La Esquina", taxRate: 0.0825 });
     expect((await db.select().from(shifts)).length).toBe(before.length);
+  });
+});
+
+describe("nightly demo reset (Vercel Cron)", () => {
+  const cron = (method: "GET" | "POST", url: string, auth: string | null, cookie: string | null = null) =>
+    new Request(`http://localhost${url}`, {
+      method,
+      headers: {
+        ...(auth ? { Authorization: auth } : {}),
+        ...(cookie ? { Cookie: `stall_owner=${cookie}` } : {}),
+      },
+    });
+  const rename = () => businessPatch(req("PATCH", "/api/business", { name: "Taquería Sol" }));
+  const name = async () => ((await (await businessGet(req("GET", "/api/business"))).json()) as { name: string }).name;
+
+  it("GET is 401 without the cron secret, with a wrong one, or with only the owner cookie, and wipes nothing", async () => {
+    await rename();
+    for (const request of [
+      cron("GET", "/api/reset-demo", null),
+      cron("GET", "/api/reset-demo", "Bearer nope"),
+      cron("GET", "/api/reset-demo?key=nope", null),
+      cron("GET", "/api/reset-demo", null, owner),
+    ]) {
+      const res = await resetGet(request);
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: "unauthorized" });
+    }
+    expect(await name()).toBe("Taquería Sol");
+  });
+
+  it("GET with Authorization: Bearer CRON_SECRET reseeds the demo", async () => {
+    await rename();
+    const res = await resetGet(cron("GET", "/api/reset-demo", "Bearer cron-secret-for-tests"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(await name()).toBe("La Esquina");
+  });
+
+  it("also takes the trigger key, and POST takes the same scheduler credentials", async () => {
+    await rename();
+    expect((await resetGet(cron("GET", "/api/reset-demo?key=close-key-for-tests", null))).status).toBe(200);
+    expect(await name()).toBe("La Esquina");
+    await rename();
+    expect((await resetPost(cron("POST", "/api/reset-demo", "Bearer cron-secret-for-tests"))).status).toBe(200);
+    expect(await name()).toBe("La Esquina");
   });
 });
 

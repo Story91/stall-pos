@@ -72,6 +72,8 @@ export const sellApi = {
   charge: (request: ChargeRequest) => call<ChargeResponse>("/api/sales", json(request)),
   cash: (saleId: string) =>
     call<{ status: string }>(`/api/sales/${encodeURIComponent(saleId)}/cash`, { method: "POST" }),
+  cancel: (saleId: string) =>
+    call<{ status: string }>(`/api/sales/${encodeURIComponent(saleId)}/cancel`, { method: "POST" }),
 };
 
 export type SellApi = typeof sellApi;

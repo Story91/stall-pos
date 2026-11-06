@@ -142,8 +142,9 @@ export async function chargeSale(
       step = "qr";
       const qrPng = await deps.invoices.generateQr(invoiceId, `${input.draftId}-qr`);
       step = "save";
-      // PayPal rounds tax per line, so its total is the one the customer pays: store it,
-      // and move the difference into tax so subtotal + tax + tip still adds up.
+      // computeTotals rounds tax per line like PayPal, so the totals normally agree. If they
+      // ever differ, PayPal's total is the one the customer pays: store it, and move the
+      // difference into tax so subtotal + tax + tip still adds up.
       let totalCents = ours.totalCents;
       let taxCents = ours.taxCents;
       if (created.amountCents !== undefined && created.amountCents !== ours.totalCents) {
@@ -220,4 +221,14 @@ export async function markPaid(
     .where(and(eq(sales.id, saleId), inArray(sales.status, ["draft", "awaiting"])))
     .returning({ id: sales.id });
   return updated.length > 0 ? "marked" : "already_paid";
+}
+
+/** Race-safe like markPaid: only an unpaid sale can become cancelled. */
+export async function markCancelled(db: Db, saleId: string): Promise<"cancelled" | "not_open"> {
+  const updated = await db
+    .update(sales)
+    .set({ status: "cancelled" })
+    .where(and(eq(sales.id, saleId), inArray(sales.status, ["draft", "awaiting"])))
+    .returning({ id: sales.id });
+  return updated.length > 0 ? "cancelled" : "not_open";
 }

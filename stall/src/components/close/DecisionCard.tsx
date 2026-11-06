@@ -201,11 +201,8 @@ function BillFacts({
       <p className="text-base font-semibold">{date}</p>
       <p className="text-base">{note ?? t.decision.noNote}</p>
       {batchId && (
-        <p className="text-sm text-graphite">
-          {t.decision.payout}{" "}
-          <span title={batchId} className="font-semibold text-ink">
-            {batchId.length > 16 ? `${batchId.slice(0, 8)}…${batchId.slice(-6)}` : batchId}
-          </span>
+        <p title={batchId} className="text-sm font-semibold text-graphite">
+          {t.decision.payout}: PayPal
         </p>
       )}
     </section>

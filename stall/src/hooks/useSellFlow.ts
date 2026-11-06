@@ -43,6 +43,7 @@ export function useSellFlow() {
   const [qr, setQr] = useState<QrStage | null>(null);
   const [cashPending, setCashPending] = useState(false);
   const [cashError, setCashError] = useState<string | null>(null);
+  const [cancelPending, setCancelPending] = useState(false);
   const [paidCash, setPaidCash] = useState(false);
 
   // One draftId per sale: every Charge retry of the same ticket reuses it, so
@@ -186,6 +187,21 @@ export function useSellFlow() {
     else setCashError(t.sell.cashFailed);
   };
 
+  // "Start a different sale" cancels the open invoice first, so it can't be paid later
+  // and never sits as "awaiting" on Today. If the customer already paid, keep the sale.
+  const cancelSale = async () => {
+    if (!qr || cancelPending) return;
+    setCancelPending(true);
+    setCashError(null);
+    const result = await sellApi.cancel(qr.sale.saleId);
+    setCancelPending(false);
+    const t = messagesFor(language);
+    if (result.ok) newSale();
+    else if (result.kind === "conflict") setCashError(t.sell.cancelPaid);
+    else if (result.kind === "network") setCashError(t.common.noConnection);
+    else setCashError(t.sell.cancelFailed);
+  };
+
   // "Paid" is said in the language the screen is in now, so text and voice never disagree
   // (the sale keeps the language its order was spoken in, for the record).
   const announcePaid = useCallback(() => {
@@ -212,6 +228,7 @@ export function useSellFlow() {
     setQr(null);
     setCashPending(false);
     setCashError(null);
+    setCancelPending(false);
     setPaidCash(false);
   };
 
@@ -239,6 +256,8 @@ export function useSellFlow() {
     cashError,
     paidCash,
     payCash: () => void payCash(),
+    cancelPending,
+    cancelSale: () => void cancelSale(),
     announcePaid,
     newSale,
   };

@@ -128,7 +128,20 @@ describe("evaluateObligations", () => {
 
     expect(mariaOutcome?.verdict).toBe("hold");
     expect(mariaOutcome?.decisionType).toBe("escalated");
-    expect(mariaOutcome?.reason).toBe("previous payout FAILED; check before paying again");
+    expect(mariaOutcome?.reason).toBe("The previous payout failed. Check the PayPal email before paying again.");
+  });
+
+  it("an UNCLAIMED payout already left the business: skip it, for a shift and a bill alike", () => {
+    const input = baseInput();
+    input.existingPayouts = [
+      { shiftId: `shift-${maria.id}`, status: "UNCLAIMED" },
+      { billId: "bill-open-1", status: "UNCLAIMED" },
+    ];
+
+    const outcomes = evaluateObligations(input);
+
+    expect(outcomes.map((o) => o.verdict)).toEqual(outcomes.map(() => "skip"));
+    expect(outcomes[0]?.reason).toContain("waits to be claimed");
   });
 
   it("holds over_limit when the shift exceeds the payee's max per day", () => {

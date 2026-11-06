@@ -46,8 +46,9 @@ describe("DecisionCard", () => {
     expect(paid.textContent).toContain("$235.00");
     expect(paid.textContent).toContain("tortillas");
     expect(paid.textContent).toContain("Nov 2");
-    // Shortened on screen; the full id stays in the title.
-    expect(paid.textContent).toContain("st-b-a1b…a4b5c6");
+    // The owner sees how it was paid, not our internal batch id (kept in the title).
+    expect(paid.textContent).toContain("Payout: PayPal");
+    expect(paid.textContent).not.toContain("st-b-");
     expect(paid.querySelector('[title="st-b-a1b2c3d4e5f60718293a4b5c6"]')).toBeTruthy();
 
     expect(screen.getByText("Possible duplicate")).toBeTruthy(); // the type badge
@@ -138,7 +139,7 @@ describe("DecisionCard", () => {
     const escalated: DecisionRow = {
       ...duplicate,
       type: "escalated",
-      reason: "previous payout FAILED; check before paying again",
+      reason: "The previous payout failed. Check the PayPal email before paying again.",
       payoutBlocked: true,
     };
     render(<DecisionCard decision={escalated} onAction={vi.fn()} />);

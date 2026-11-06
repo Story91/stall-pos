@@ -106,7 +106,9 @@ export function reconcileDay(input: {
     .filter((t) => !used.has(t.id) && t.cents !== 0 && businessDate(new Date(t.at), tz) === date)
     .map((t) => ({ id: t.id, cents: t.cents, at: t.at }));
 
-  const inDay = pool.filter((t) => used.has(t.id) || other.some((o) => o.id === t.id));
+  // Only what matches Stall's own records, so the two columns compare like with like;
+  // anything else PayPal saw that day is listed under `other`.
+  const inDay = pool.filter((t) => used.has(t.id));
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   return {
     status: missing.some((m) => !m.recent) ? "gaps" : missing.length > 0 ? "waiting" : "match",

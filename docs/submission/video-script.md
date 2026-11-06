@@ -5,11 +5,11 @@ Rules that matter: under 3 minutes, public on YouTube, shows the project working
 ## Before you record (10 minutes)
 
 1. **Two screens.** Phone or a narrow browser window for Stall (the owner). A second phone or browser window for the customer who pays the QR.
-2. Open https://stall-ashen.vercel.app on the owner screen, enter PIN `1234`, go to **Settings**, tap **Reset demo data**, confirm.
+2. Open https://stall-ashen.vercel.app on the owner screen, enter PIN `1234`, go to **Settings**, tap **Reset demo data**, then **Yes, reset**.
 3. On the customer screen, have https://www.sandbox.paypal.com ready and be logged in with your sandbox buyer account (the password is in `stall/.env`, `SANDBOX_BUYER_PASSWORD`; never show that file on screen).
 4. Language pill on Sell: **ES** for the first sale.
 5. Close every other tab and notification. Record at 1080p. Increase cursor size if recording a desktop.
-6. Use these orders. They give the same total in Stall and in PayPal, so no number on screen jumps by a cent:
+6. Use these orders. Stall rounds tax per line like PayPal, so the total on Sell and on the PayPal invoice is the same:
    - Spanish: `dos tacos al pastor y un agua fresca` ($12.99)
    - English: `two tacos al pastor and an agua fresca` ($12.99)
 

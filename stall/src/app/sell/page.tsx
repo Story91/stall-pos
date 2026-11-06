@@ -42,6 +42,8 @@ export default function SellPage() {
             onCash={flow.payCash}
             onPaid={flow.announcePaid}
             onNewSale={flow.newSale}
+            cancelPending={flow.cancelPending}
+            onCancelSale={flow.cancelSale}
           />
         ) : (
           <>
@@ -132,6 +134,8 @@ function PaymentStage({
   onCash(): void;
   onPaid(): void;
   onNewSale(): void;
+  cancelPending: boolean;
+  onCancelSale(): void;
 }) {
   const { status } = useSaleStatus(stage.sale.saleId);
   return (

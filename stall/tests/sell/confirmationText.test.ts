@@ -11,7 +11,11 @@ describe("confirmationText", () => {
   });
 
   it("speaks the total in Polish with a decimal comma", () => {
-    expect(confirmationText("pl", 1840)).toBe("Zapłacono, 18,40 dolarów. Dziękuję");
+    expect(confirmationText("pl", 1840)).toBe("Zapłacono, 18,40 dolara. Dziękuję");
+    expect(confirmationText("pl", 200)).toMatch(/ dolary. /);
+    expect(confirmationText("pl", 500)).toMatch(/ dolarów. /);
+    expect(confirmationText("pl", 1200)).toMatch(/ dolarów. /);
+    expect(confirmationText("pl", 2200)).toMatch(/ dolary. /);
   });
 
   it("keeps cents padded", () => {

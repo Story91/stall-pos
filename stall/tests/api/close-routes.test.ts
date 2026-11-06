@@ -250,7 +250,10 @@ describe("close, decisions and day", () => {
       decisions: { id: string; status: string }[];
       payouts: { batchId: string; payeeName: string | null; payeeRole: string | null }[];
     };
-    expect(view.run?.summary).toBe(result.summary);
+    // The view says where things stand now: the payout PayPal has not settled yet is on its way.
+    expect(view.run?.summary).toBe(
+      result.summary.replace("Paid 1 ($120.00 total)", "1 payout is on the way ($120.00 total)"),
+    );
     expect(view.decisions.map((d) => d.id).sort()).toEqual(
       result.held.map((h) => h.decisionId).sort(),
     );
@@ -340,6 +343,26 @@ describe("close, decisions and day", () => {
     expect((await dayGet(req("GET", "/api/day/yesterday"), dateCtx("yesterday"))).status).toBe(400);
     expect((await closeGet(req("GET", "/api/close/2031-02-30"), dateCtx("2031-02-30"))).status).toBe(400);
     expect((await closePost(req("POST", "/api/close", { date: "soon" }))).status).toBe(400);
+  });
+
+  it("serves the close and the day in the language asked for, and rejects one it does not know", async () => {
+    for (const path of [`/api/close/${today}?language=de`, `/api/close/${today}?language=`]) {
+      const bad = await closeGet(req("GET", path), dateCtx(today));
+      expect(bad.status).toBe(400);
+      expect(((await bad.json()) as { error: string }).error).toBe("invalid_request");
+    }
+    expect((await dayGet(req("GET", `/api/day/${today}?language=xx`), dateCtx(today))).status).toBe(400);
+
+    const pl = (await (await closeGet(req("GET", `/api/close/${today}?language=pl`), dateCtx(today))).json()) as {
+      run: { summary: string; log: { tool: string }[] };
+      decisions: { reason: string }[];
+    };
+    expect(pl.run.summary).toMatch(/^Zamknięto dzień /);
+    expect(pl.decisions.some((d) => d.reason.startsWith("Możliwy duplikat"))).toBe(true);
+    // Bookkeeping entries stay out of the audit trail the owner sees.
+    expect(pl.run.log.map((e) => e.tool)).not.toContain("summaries");
+    const day = await dayGet(req("GET", `/api/day/${today}?language=es`), dateCtx(today));
+    expect(day.status).toBe(200);
   });
 
   it("accepts the owner's language and rejects one it does not know", async () => {

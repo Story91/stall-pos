@@ -1,6 +1,6 @@
 // Turns the close log's raw errors into something the owner can act on, and
 // finds payouts that were attempted but never sent (no payout row exists).
-import type { DayView, LogEntry, PayoutRow } from "./types";
+import type { DayView, DecisionRow, LogEntry, PayoutRow } from "./types";
 
 export type ErrorKind = "ai" | "network" | "paypal" | "rules" | "other";
 
@@ -58,4 +58,12 @@ export function failedPayouts(
     });
   }
   return result;
+}
+
+/**
+ * True once the owner has answered every decision the close raised. The stored
+ * summary still says what the run asked for; the screen must not imply it still waits.
+ */
+export function everyDecisionHandled(decisions: Pick<DecisionRow, "status">[]): boolean {
+  return decisions.length > 0 && decisions.every((d) => d.status !== "open");
 }

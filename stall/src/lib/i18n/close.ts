@@ -43,6 +43,20 @@ export type CloseMessages = {
   };
   /** Stored as the payout rationale when the owner approves a held item. */
   approvedByOwner: string;
+  /** The summary as it stands now: payouts by their current PayPal status, held items by the owner's answer. */
+  live: {
+    sending(count: number, total: string, names: string): string;
+    unclaimed(count: number, names: string): string;
+    notThrough(count: number, names: string): string;
+    decided(count: number, names: string): string;
+    outcome: { approved: string; declined: string; marked_paid: string };
+  };
+  /** What a payout was for, when its stored reason is not in the owner's language. */
+  payoutLabel: {
+    shift(date: string): string;
+    bill(note: string): string;
+    billNoNote: string;
+  };
 };
 
 const en: CloseMessages = {
@@ -58,8 +72,11 @@ const en: CloseMessages = {
   reasons: {
     alreadyEscalated: "Already escalated to the owner; waiting for their decision.",
     payoutExists: (kind, status) =>
-      `A payout for this ${kind} already exists with status ${status}, so it will not be paid again.`,
-    previousPayout: (status) => `previous payout ${status}; check before paying again`,
+      `This ${kind} ${({ PENDING: "is already being paid", SUCCESS: "was already paid", UNCLAIMED: "was already paid and waits to be claimed" } as Record<string, string>)[status] ?? "already has a payout"}, so it will not be paid again.`,
+    previousPayout: (status) =>
+      status === "FAILED"
+        ? "The previous payout failed. Check the PayPal email before paying again."
+        : `The previous payout is ${status.toLowerCase()}. Check before paying again.`,
     noDailyRate: (name) =>
       `${name} has no daily rate set; add one in Settings before this shift can be paid.`,
     invalidAmount: (cents, name) => `Held for review: invalid amount (${cents} cents) for ${name}.`,
@@ -76,6 +93,20 @@ const en: CloseMessages = {
       `Bill of ${amount} for ${name} is within the daily limit and auto-pay is on.`,
   },
   approvedByOwner: "Approved by owner",
+  live: {
+    sending: (count, total, names) =>
+      `${count} ${onePlural(count, "payout is", "payouts are")} on the way (${total} total): ${names}.`,
+    unclaimed: (count, names) =>
+      `${count} ${onePlural(count, "payout waits", "payouts wait")} to be claimed: ${names}.`,
+    notThrough: (count, names) => `${count} ${onePlural(count, "payout", "payouts")} did not go through: ${names}.`,
+    decided: (count, names) => `You decided ${count}: ${names}.`,
+    outcome: { approved: "approved", declined: "declined", marked_paid: "marked as paid" },
+  },
+  payoutLabel: {
+    shift: (date) => `Shift, ${sayDate(date, "en-US")}`,
+    bill: (note) => `Bill: ${note}`,
+    billNoNote: "Bill",
+  },
 };
 
 const es: CloseMessages = {
@@ -94,8 +125,11 @@ const es: CloseMessages = {
   reasons: {
     alreadyEscalated: "Ya se le pasó al dueño; espera su decisión.",
     payoutExists: (kind, status) =>
-      `Ya existe un pago para ${kind === "shift" ? "este turno" : "esta cuenta"} con estado ${status}, así que no se pagará otra vez.`,
-    previousPayout: (status) => `el pago anterior quedó ${status}; revisa antes de pagar otra vez`,
+      `${kind === "shift" ? "Este turno" : "Esta cuenta"} ${({ PENDING: "ya se está pagando", SUCCESS: "ya se pagó", UNCLAIMED: "ya se pagó y espera que lo reclamen" } as Record<string, string>)[status] ?? "ya tiene un pago"}, así que no se pagará otra vez.`,
+    previousPayout: (status) =>
+      status === "FAILED"
+        ? "El pago anterior falló. Revisa el correo de PayPal antes de pagar otra vez."
+        : `El pago anterior está en estado ${status}. Revisa antes de pagar otra vez.`,
     noDailyRate: (name) =>
       `${name} no tiene pago diario; agrégalo en Ajustes para poder pagar este turno.`,
     invalidAmount: (cents, name) =>
@@ -113,6 +147,20 @@ const es: CloseMessages = {
       `La cuenta de ${amount} de ${name} está dentro del límite diario y el pago automático está activo.`,
   },
   approvedByOwner: "Aprobado por el dueño",
+  live: {
+    sending: (count, total, names) =>
+      `${count} ${onePlural(count, "pago va", "pagos van")} en camino (total ${total}): ${names}.`,
+    unclaimed: (count, names) =>
+      `${count} ${onePlural(count, "pago está", "pagos están")} sin cobrar todavía: ${names}.`,
+    notThrough: (count, names) => `${count} ${onePlural(count, "pago no pasó", "pagos no pasaron")}: ${names}.`,
+    decided: (count, names) => `Ya decidiste ${count}: ${names}.`,
+    outcome: { approved: "aprobado", declined: "rechazado", marked_paid: "marcado como pagado" },
+  },
+  payoutLabel: {
+    shift: (date) => `Turno del ${sayDate(date, "es-US")}`,
+    bill: (note) => `Cuenta: ${note}`,
+    billNoNote: "Cuenta",
+  },
 };
 
 const item = (count: number) => plPlural(count, "pozycja", "pozycje", "pozycji");
@@ -134,8 +182,11 @@ const pl: CloseMessages = {
   reasons: {
     alreadyEscalated: "Już przekazano właścicielowi; czeka na jego decyzję.",
     payoutExists: (kind, status) =>
-      `Wypłata za ${kind === "shift" ? "tę zmianę" : "ten rachunek"} już istnieje (status ${status}), więc nie zostanie powtórzona.`,
-    previousPayout: (status) => `poprzednia wypłata: ${status}; sprawdź przed ponowną wypłatą`,
+      `${kind === "shift" ? "Ta zmiana" : "Ten rachunek"} ${({ PENDING: "jest już w trakcie wypłaty", SUCCESS: "jest już wypłacony", UNCLAIMED: "jest już wypłacony i czeka na odebranie" } as Record<string, string>)[status] ?? "ma już wypłatę"}, więc nie zostanie wypłacony ponownie.`,
+    previousPayout: (status) =>
+      status === "FAILED"
+        ? "Poprzednia wypłata się nie udała. Sprawdź e-mail PayPal przed ponowną wypłatą."
+        : `Poprzednia wypłata ma status ${status}. Sprawdź przed ponowną wypłatą.`,
     noDailyRate: (name) =>
       `Odbiorca ${name} nie ma stawki dziennej; dodaj ją w Ustawieniach, zanim ta zmiana zostanie wypłacona.`,
     invalidAmount: (cents, name) =>
@@ -155,6 +206,22 @@ const pl: CloseMessages = {
       `Rachunek na ${amount} (${name}) mieści się w dziennym limicie, a autopłatność jest włączona.`,
   },
   approvedByOwner: "Zatwierdzone przez właściciela",
+  live: {
+    sending: (count, total, names) =>
+      `${count} ${plPlural(count, "wypłata jest", "wypłaty są", "wypłat jest")} w drodze (razem ${total}): ${names}.`,
+    unclaimed: (count, names) =>
+      `${count} ${plPlural(count, "wypłata czeka", "wypłaty czekają", "wypłat czeka")} na odebranie: ${names}.`,
+    notThrough: (count, names) =>
+      `${count} ${plPlural(count, "wypłata nie doszła", "wypłaty nie doszły", "wypłat nie doszło")} do skutku: ${names}.`,
+    decided: (count, names) =>
+      `Zdecydowano o ${count} ${plPlural(count, "pozycji", "pozycjach", "pozycjach")}: ${names}.`,
+    outcome: { approved: "zatwierdzone", declined: "odrzucone", marked_paid: "oznaczone jako zapłacone" },
+  },
+  payoutLabel: {
+    shift: (date) => `Zmiana, ${sayDate(date, "pl-PL")}`,
+    bill: (note) => `Rachunek: ${note}`,
+    billNoNote: "Rachunek",
+  },
 };
 
 const CLOSE_MESSAGES: Record<Language, CloseMessages> = { en, es, pl };

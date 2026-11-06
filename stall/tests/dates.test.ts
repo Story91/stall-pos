@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { businessDate, daysAgo } from "@/lib/dates";
+import { businessDate, daysAgo, zonedTime } from "@/lib/dates";
 
 describe("businessDate", () => {
   it("returns the business-timezone calendar date, not the UTC date", () => {
@@ -36,5 +36,19 @@ describe("daysAgo", () => {
   it("is not affected by the DST transition on Nov 1 2026", () => {
     expect(daysAgo("2026-11-02", 1)).toBe("2026-11-01");
     expect(daysAgo("2026-11-02", 2)).toBe("2026-10-31");
+  });
+});
+
+describe("zonedTime", () => {
+  it("reads a wall-clock time in the business timezone, across the DST change", () => {
+    // Oct 30 2026: Chicago is on CDT (UTC-5). Nov 6 2026: CST (UTC-6).
+    expect(zonedTime("2026-10-30", 12 * 60 + 15, "America/Chicago").toISOString()).toBe("2026-10-30T17:15:00.000Z");
+    expect(zonedTime("2026-11-06", 12 * 60 + 15, "America/Chicago").toISOString()).toBe("2026-11-06T18:15:00.000Z");
+  });
+
+  it("maps evening times to the next UTC day while staying on the business date", () => {
+    const at = zonedTime("2026-11-06", 20 * 60 + 45, "America/Chicago");
+    expect(at.toISOString()).toBe("2026-11-07T02:45:00.000Z");
+    expect(businessDate(at, "America/Chicago")).toBe("2026-11-06");
   });
 });

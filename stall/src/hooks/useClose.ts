@@ -10,7 +10,10 @@ import type {
   DecisionAction,
   RunCloseResult,
 } from "@/lib/owner/types";
+import { messagesFor } from "@/lib/i18n";
 import { useLanguage } from "@/lib/i18n/useT";
+import { everyDecisionHandled } from "@/lib/owner/closeIssues";
+import type { Language } from "@/lib/parse/schema";
 import { readLanguage } from "@/lib/sell/languageStore";
 import { speak } from "@/lib/voice/speak";
 
@@ -29,18 +32,30 @@ export function useClose() {
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [runNotice, setRunNotice] = useState<RunNotice | null>(null);
+  // The language the server worded `view` in; lags `language` until the refetch lands.
+  const [viewLanguage, setViewLanguage] = useState<Language>(language);
   const spoken = useRef<string | null>(null);
+  const latest = useRef(0);
+  const wanted = useRef(language);
+  useEffect(() => {
+    wanted.current = language;
+  }, [language]);
 
+  // Depends on `language`, so switching language refetches the close worded in it.
   const refresh = useCallback(async (date: string) => {
+    const request = ++latest.current;
     const [close, dayView] = await Promise.all([
-      ownerCall<CloseView>(`/api/close/${date}`),
-      ownerCall<DayView>(`/api/day/${date}`),
+      ownerCall<CloseView>(`/api/close/${date}?language=${language}`),
+      ownerCall<DayView>(`/api/day/${date}?language=${language}`),
     ]);
+    // A slower, older response (say, from before a language switch) must not win.
+    if (request !== latest.current || language !== wanted.current) return;
     if (!close.ok) return setLoadError(failureText(close, readLanguage()));
     setView(close.data);
+    setViewLanguage(language);
     if (dayView.ok) setDay(dayView.data);
     setLoadError(null);
-  }, []);
+  }, [language]);
 
   const load = useCallback(() => {
     void ownerCall<BusinessView>("/api/business").then((biz) => {
@@ -52,13 +67,20 @@ export function useClose() {
 
   useEffect(load, [load]);
 
-  // Read the summary aloud once when it arrives (and again only if it changes).
-  const summary = view?.run?.summary ?? null;
+  // Read the summary aloud once when a close lands (and again when a later run acts
+  // or the language changes), in the language it is worded in. It says what is true
+  // now, so it changes as payouts settle and decisions are answered: those changes
+  // update the screen, but do not start reading it out again. Replay reads exactly what is shown.
+  const closeRun = view?.run ?? null;
+  const summary = closeRun?.summary ?? null;
+  const handled = everyDecisionHandled(view?.decisions ?? []);
+  const spokenText = summary && handled ? `${summary} ${messagesFor(viewLanguage).close.allHandled}` : summary;
+  const speakKey = closeRun ? `${closeRun.createdAt}|${closeRun.log.length}|${viewLanguage}` : null;
   useEffect(() => {
-    if (!summary || spoken.current === summary) return;
-    spoken.current = summary;
-    speak(summary, language);
-  }, [summary, language]);
+    if (!speakKey || !spokenText || spoken.current === speakKey) return;
+    spoken.current = speakKey;
+    speak(spokenText, viewLanguage);
+  }, [speakKey, spokenText, viewLanguage]);
 
   const date = business?.today ?? null;
   const sending = view?.payouts.some((p) => p.status === "PENDING") ?? false;
@@ -109,6 +131,6 @@ export function useClose() {
     runNotice,
     run: () => void run(),
     resolve,
-    replaySummary: () => summary && speak(summary, language),
+    replaySummary: () => spokenText && speak(spokenText, viewLanguage),
   };
 }

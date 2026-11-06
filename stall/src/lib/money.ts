@@ -13,6 +13,21 @@ function roundHalfUp(x: number): number {
 // Parts per million: covers tax rates with up to six decimal places.
 const RATE_SCALE = 1_000_000;
 
+/**
+ * Tax on one line in integer math: round(cents * rate) = floor((2*cents*ppm + S) / (2*S)),
+ * where ppm = rate in parts per million and S = RATE_SCALE. Avoids float
+ * multiplication, which lands just below .5 at exact half-cent boundaries.
+ */
+function lineTaxCents(lineCents: number, rateParts: number): number {
+  return Math.floor((2 * lineCents * rateParts + RATE_SCALE) / (2 * RATE_SCALE));
+}
+
+/**
+ * Sale totals in integer cents, computed the way PayPal Invoicing does: tax is
+ * rounded half up per line (qty x unit price), then summed, so the screen and
+ * the invoice the customer pays agree to the cent. The tip is a percent of the
+ * pre-tax subtotal and is never taxed.
+ */
 export function computeTotals(
   lines: Line[],
   taxRate: number,
@@ -23,8 +38,9 @@ export function computeTotals(
   tipCents: number;
   totalCents: number;
 } {
+  const rateParts = Math.round(taxRate * RATE_SCALE);
   let subtotalCents = 0;
-  let taxableSubtotalCents = 0;
+  let taxCents = 0;
   for (const line of lines) {
     if (!Number.isInteger(line.qty) || !Number.isInteger(line.unitCents)) {
       throw new RangeError(
@@ -33,18 +49,9 @@ export function computeTotals(
     }
     const lineCents = line.qty * line.unitCents;
     subtotalCents += lineCents;
-    if (line.taxable) {
-      taxableSubtotalCents += lineCents;
-    }
+    if (line.taxable) taxCents += lineTaxCents(lineCents, rateParts);
   }
 
-  // Tax in integer math: round(taxable * rate) = floor((2*taxable*bp + S) / (2*S))
-  // where bp = rate in parts per million and S = RATE_SCALE. Avoids float
-  // multiplication, which lands just below .5 at exact half-cent boundaries.
-  const rateParts = Math.round(taxRate * RATE_SCALE);
-  const taxCents = Math.floor(
-    (2 * taxableSubtotalCents * rateParts + RATE_SCALE) / (2 * RATE_SCALE),
-  );
   const tipCents =
     tipPct === null ? 0 : roundHalfUp((subtotalCents * tipPct) / 100);
 

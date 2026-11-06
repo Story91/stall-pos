@@ -32,10 +32,10 @@ describe("ActionLog", () => {
     expect(screen.queryByText("Agent said")).toBeNull();
   });
 
-  it("renders a different Agent said entry as plain text", () => {
+  it("renders an Agent said entry as plain text when there is no note", () => {
     render(
       <ActionLog
-        log={[paid, summary, said("**Paid:** Maria\n- one bill held\n- nothing else")]}
+        log={[paid, said("**Paid:** Maria\n- one bill held\n- nothing else")]}
         names={names}
       />,
     );
@@ -45,9 +45,9 @@ describe("ActionLog", () => {
     expect(line.textContent).toContain("• one bill held");
   });
 
-  it("keeps a short Agent said entry even though the note contains it", () => {
-    render(<ActionLog log={[paid, summary, said("ok")]} names={names} />);
-    expect(screen.getByText("Agent said")).toBeTruthy();
+  it("hides the model's closing words when its note is shown above, even when paraphrased", () => {
+    render(<ActionLog log={[paid, summary, said("Paid Maria; also held one bill for you.")]} names={names} />);
+    expect(screen.queryByText("Agent said")).toBeNull();
   });
 
   it("keeps money-moving entries unchanged", () => {

@@ -364,7 +364,7 @@ describe("runClose on the demo day", () => {
       .where(eq(decisions.shiftId, mariaShiftId));
     expect(d).toMatchObject({ type: "escalated" });
     expect(d!.reason).toContain(
-      "previous payout FAILED; check before paying again",
+      "The previous payout failed. Check the PayPal email before paying again.",
     );
   });
 
@@ -469,7 +469,7 @@ describe("a bill payout that FAILED", () => {
       .where(eq(decisions.billId, gas.id));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ type: "escalated", status: "open" });
-    expect(rows[0]!.reason).toContain("previous payout FAILED");
+    expect(rows[0]!.reason).toContain("The previous payout failed");
     expect(rows[0]!.reason).not.toContain("Possible duplicate");
     expect(await billStatus(gas.id)).toBe("held");
   });

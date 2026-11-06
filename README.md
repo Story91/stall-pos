@@ -20,16 +20,17 @@ Hosted demo: **<https://stall-ashen.vercel.app>** (PayPal sandbox, no real money
 
 No login is needed to pay: PayPal's sandbox invoice page accepts **Debit or Credit Card** as a guest (use a test card from the Credit Card Generator in your PayPal Developer Dashboard), or you can log in with any PayPal sandbox Personal account.
 
+0. If someone used the demo before you, start it fresh: **Settings** → **Reset demo data** → **Yes, reset**. (The hosted demo also resets itself every night, shortly after midnight Chicago time.)
 1. Open the URL on your phone (or a desktop browser) and enter PIN `1234`. You land on **Sell**.
 2. Type the order in the text box, for example `two tacos al pastor and an agua fresca`, tap **Read order**, check the items, tap **Charge**.
 3. A PayPal invoice QR appears with "Waiting for payment". Scan it, or tap **Copy pay link** and open it in another browser, then pay with **Debit or Credit Card** (sandbox test card) or a sandbox PayPal account. Or tap **Paid in cash** to finish the sale without PayPal.
 4. As soon as PayPal reports the invoice paid, Sell flips to a full-screen **Paid**.
 5. Open **Today**. Today's sales, tax and tips are listed, and two obligations are already logged: Maria's shift and a tortillas bill.
-6. Tap **Close the day** (you land on **Close**).
+6. Tap **Close the day** (you land on **Close**), then tap **Run close now**.
    - Maria's $120 shift is paid through PayPal Payouts, with a one-sentence reason.
    - The **Money check with PayPal** card compares the day's ledger with PayPal's own transaction report. PayPal can take up to about 3 hours to list a new payment, so fresh items show as "not in PayPal's report yet" until they appear.
    - The tortillas bill is **held**: it looks like a bill paid two days ago. The decision card shows both bills.
-7. Tap **Mark as already paid** on the held bill (nothing is sent), then **Run close again**. Nothing is paid twice.
+7. Tap **Mark as already paid** on the held bill, then **Yes, it's already paid** (nothing is sent), then **Run close again**. Nothing is paid twice.
 8. Open **History** and type `cash sales over $20 this week` (or hold the mic and ask). Claude turns the question into a filter on the AG Grid ledger; the answer line and the totals row are computed by code from the rows shown.
 
 The **EN / ES / PL** buttons on Sell (also in Settings) switch the whole app: every screen, the close summary and the voice.
@@ -64,7 +65,7 @@ cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
 | `CLOSE_TRIGGER_KEY` | Any long random string. It signs the owner cookie and guards `/api/close?key=`. `CRON_SECRET` (optional locally, set it in Vercel) is the bearer token for the nightly cron in `stall/vercel.json`. |
 | `PAYPAL_WEBHOOK_ID` | Any non-empty value for now; set the real one once you register a webhook (below). |
 | `SANDBOX_MARIA_EMAIL` | The email of your Maria sandbox Personal account. The seed pays Maria at this address. **If you leave it empty the seed uses `maria@stall.example`, which has no PayPal account, so her payout ends `UNCLAIMED`.** |
-| `SANDBOX_ROSA_EMAIL` | The email of your Rosa sandbox Personal account, for the same reason (empty: `rosa@stall.example`, payouts end `UNCLAIMED`). If you fill either in later, restart the dev server and tap **Reset demo** in Settings. |
+| `SANDBOX_ROSA_EMAIL` | The email of your Rosa sandbox Personal account, for the same reason (empty: `rosa@stall.example`, payouts end `UNCLAIMED`). If you fill either in later, restart the dev server and tap **Reset demo data** in Settings. |
 
 **3. Run**
 
@@ -72,9 +73,9 @@ cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
 npm run dev
 ```
 
-Open <http://localhost:3000>, enter your `OWNER_PIN`, and follow the judge path above. "Reset demo" in Settings restores the demo day. Do not run `npm run db:seed` while the dev server is up: a PGlite data directory has one owner at a time.
+Open <http://localhost:3000>, enter your `OWNER_PIN`, and follow the judge path above. **Reset demo data** in Settings restores the demo day. Do not run `npm run db:seed` while the dev server is up: a PGlite data directory has one owner at a time.
 
-**Webhooks are optional locally.** The PayPal path works without a tunnel: while the QR screen is open the app asks PayPal for the invoice status every 3 s, and the Day and Close screens ask PayPal for the status of each payout still sending. A webhook only makes it instant:
+**Webhooks are optional locally.** The PayPal path works without a tunnel: while the QR screen is open the app asks PayPal for the invoice status every 3 s, the Close screen asks PayPal for the status of each payout still sending every 5 s, and the Day screen asks once each time it loads (reopen it to see a later change). A webhook only makes it instant:
 
 - Expose `localhost:3000` through a tunnel (ngrok, cloudflared), register `https://<tunnel>/api/paypal/webhook` for your app with the `INVOICING.INVOICE.PAID` and `PAYMENT.PAYOUTS-ITEM.*` events, and put the real webhook id in `PAYPAL_WEBHOOK_ID`. Signatures are verified.
 - To try the webhook handler without a tunnel, set `PAYPAL_WEBHOOK_SKIP_VERIFY=1` (honoured only when `NODE_ENV` is not production) and post a sample event to `/api/paypal/webhook` yourself.
@@ -152,7 +153,7 @@ flowchart LR
   Payouts --> PP
 ```
 
-Hosting: Vercel (project root directory `stall`), Postgres on Neon through the Vercel Marketplace, and a Vercel Cron job for the nightly close, configured in [`stall/vercel.json`](stall/vercel.json) (`0 2 * * *` UTC, about 20:00 to 21:00 in Chicago). It calls `/api/close` with `Authorization: Bearer <CRON_SECRET>`, so set `CRON_SECRET` in the Vercel project (without it, `CLOSE_TRIGGER_KEY` is the bearer).
+Hosting: Vercel (project root directory `stall`), Postgres on Neon through the Vercel Marketplace, and two Vercel Cron jobs configured in [`stall/vercel.json`](stall/vercel.json): the nightly close (`0 2 * * *` UTC, about 20:00 to 21:00 in Chicago, calls `/api/close`) and the nightly demo reset (`0 7 * * *` UTC, about 01:00 to 02:00 in Chicago, calls `/api/reset-demo`, so every Chicago day starts with Maria's shift and the tortillas bill). Both send `Authorization: Bearer <CRON_SECRET>`, so set `CRON_SECRET` in the Vercel project (without it, `CLOSE_TRIGGER_KEY` is the bearer).
 
 ## Sponsor tools
 
