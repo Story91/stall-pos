@@ -1,5 +1,8 @@
 import { z } from "zod";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "@/db";
+import { sales } from "@/db/schema";
+import { businessDate } from "@/lib/dates";
 import { listCatalog } from "@/lib/catalog";
 import { ApiError } from "@/lib/apiError";
 import { LANGUAGES } from "@/lib/parse/schema";
@@ -10,13 +13,17 @@ import {
   createAndSendInvoice,
   generateQr,
   getInvoiceStatus,
+  cancelInvoice,
   recordCashPayment,
+  recordCashRefund,
 } from "@/lib/paypal/invoices";
 import {
   isMockEnabled,
   mockInvoices,
   mockParseSale,
+  mockCancelInvoice,
   mockRecordCashPayment,
+  mockRecordCashRefund,
 } from "@/lib/paypal/mock";
 import {
   chargeSale,
@@ -195,6 +202,81 @@ export async function payCash(
   return marked === "marked"
     ? { kind: "paid", status: "paid_cash" }
     : { kind: "already_paid" };
+}
+
+export type VoidDeps = {
+  cancelInvoice: (invoiceId: string, requestId: string) => Promise<void>;
+  recordCashRefund: (invoiceId: string, cents: number, requestId: string) => Promise<void>;
+};
+
+/** PayPal calls for cancelling a sale; offline fakes with PAYPAL_MOCK=1 (never in production). */
+export function voidDeps(env: Env = process.env): VoidDeps {
+  return isMockEnabled("PAYPAL_MOCK", env)
+    ? { cancelInvoice: mockCancelInvoice, recordCashRefund: mockRecordCashRefund }
+    : { cancelInvoice, recordCashRefund };
+}
+
+export type VoidResult =
+  | { kind: "cancelled"; was: "awaiting" | "paid_cash" | "draft" }
+  | { kind: "not_found" }
+  | { kind: "already_cancelled" }
+  /** Paid through PayPal: the money is in the owner's account; refund it from PayPal. */
+  | { kind: "paid_paypal" }
+  /** It changed (for example, got paid) while we were cancelling it. */
+  | { kind: "changed" };
+
+/**
+ * Cancels a sale. Unpaid: the PayPal invoice is cancelled so it can't be paid.
+ * Paid in cash: a cash refund is recorded on the invoice. Paid through PayPal:
+ * refused; the owner refunds it in PayPal. PayPal first, then our row, with a
+ * conditional update so a sale paid in the meantime is never marked cancelled.
+ */
+export async function voidSale(db: Db, deps: VoidDeps, saleId: string): Promise<VoidResult> {
+  const sale = await getSale(db, saleId);
+  if (!sale) return { kind: "not_found" };
+  if (sale.status === "cancelled") return { kind: "already_cancelled" };
+  if (sale.status === "paid") return { kind: "paid_paypal" };
+
+  const was = sale.status;
+  if (sale.invoiceId) {
+    if (was === "awaiting") await deps.cancelInvoice(sale.invoiceId, `${sale.draftId}-cancel`);
+    if (was === "paid_cash") await deps.recordCashRefund(sale.invoiceId, sale.totalCents, `${sale.draftId}-refund`);
+  }
+  const updated = await db
+    .update(sales)
+    .set({ status: "cancelled" })
+    .where(and(eq(sales.id, sale.id), eq(sales.status, was)))
+    .returning({ id: sales.id });
+  return updated.length > 0 ? { kind: "cancelled", was } : { kind: "changed" };
+}
+
+export type LastSale = {
+  saleId: string;
+  invoiceNumber: string | null;
+  totalCents: number;
+  status: "awaiting" | "paid" | "paid_cash";
+  items: string;
+  createdAt: string;
+};
+
+/** The newest charged sale of the business today (what "cancel that sale" means), or null. */
+export async function lastSale(db: Db, now = new Date()): Promise<LastSale | null> {
+  const business = await getBusiness(db);
+  const [row] = await db
+    .select()
+    .from(sales)
+    .where(and(eq(sales.businessId, business.id), inArray(sales.status, ["awaiting", "paid", "paid_cash"])))
+    .orderBy(desc(sales.createdAt))
+    .limit(1);
+  if (!row || businessDate(row.createdAt, business.tz) !== businessDate(now, business.tz)) return null;
+  return {
+    saleId: row.id,
+    invoiceNumber: row.invoiceNumber,
+    totalCents: row.totalCents,
+    status: row.status as LastSale["status"],
+    items: row.lines.map((l) => `${l.qty} ${l.name}`).join(", "),
+    createdAt: row.createdAt.toISOString(),
+  };
 }
 
 /** Maps expected failures to API responses; anything else is rethrown (500). */

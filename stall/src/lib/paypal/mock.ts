@@ -29,6 +29,8 @@ export const mockInvoices: SaleInvoices = {
 };
 
 export const mockRecordCashPayment = async (): Promise<void> => {};
+export const mockCancelInvoice = async (): Promise<void> => {};
+export const mockRecordCashRefund = async (): Promise<void> => {};
 
 /** Fixed parse of the smoke-test order; any other transcript fails like a model error would. */
 export const mockParseSale: typeof parseSale = async (input) => {

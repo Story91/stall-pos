@@ -24,6 +24,7 @@ No login is needed to pay: PayPal's sandbox invoice page accepts **Debit or Cred
 2. Type the order in the text box, for example `two tacos al pastor and an agua fresca`, tap **Read order**, check the items, tap **Charge**.
 3. A PayPal invoice QR appears with "Waiting for payment". Scan it, or tap **Copy pay link** and open it in another browser, then pay with **Debit or Credit Card** (sandbox test card) or a sandbox PayPal account. Or tap **Paid in cash** to finish the sale without PayPal.
 4. As soon as PayPal reports the invoice paid, Sell flips to a full-screen **Paid**.
+   - Changed your mind? Say or type **`cancel that sale`**. Stall finds today's last sale and asks first. An unpaid invoice is cancelled in PayPal; a cash sale gets a cash refund recorded on its invoice. A sale paid through PayPal is refunded from PayPal itself, and Stall says so. The QR screen also has **Cancel this sale**.
 5. Open **Today**. Today's sales, tax and tips are listed, and two obligations are already logged: Maria's shift and a tortillas bill.
 6. Tap **Close the day** (you land on **Close**).
    - Maria's $120 shift is paid through PayPal Payouts, with a one-sentence reason.
@@ -103,6 +104,8 @@ Out of scope: card reader, receipt printing, inventory, tables, multi-location, 
 | QR code | `POST /v2/invoicing/invoices/{id}/generate-qr-code` | [`invoices.ts`](stall/src/lib/paypal/invoices.ts) |
 | Invoice status | `GET /v2/invoicing/invoices/{id}` | [`invoices.ts`](stall/src/lib/paypal/invoices.ts) |
 | Cash sale recorded on the invoice | `POST /v2/invoicing/invoices/{id}/payments` | [`invoices.ts`](stall/src/lib/paypal/invoices.ts) |
+| Cancel an unpaid sale ("cancel that sale", or the button on the QR screen) | `POST /v2/invoicing/invoices/{id}/cancel` | [`invoices.ts`](stall/src/lib/paypal/invoices.ts), [`salesApi.ts`](stall/src/lib/salesApi.ts) |
+| Cancel a cash sale: cash refund recorded on the invoice | `POST /v2/invoicing/invoices/{id}/refunds` | [`invoices.ts`](stall/src/lib/paypal/invoices.ts) |
 | Pay a logged shift or bill | `POST /v1/payments/payouts` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Payout batch status | `GET /v1/payments/payouts/{batch_id}` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Signature check on every webhook | `POST /v1/notifications/verify-webhook-signature` | [`webhooks.ts`](stall/src/lib/paypal/webhooks.ts) |

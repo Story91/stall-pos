@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import type { TipPct } from "@/components/sell/TipToggle";
 import type { MicState } from "@/components/sell/MicButton";
 import type { Language } from "@/lib/parse/schema";
-import { sellApi, type BusinessInfo, type ChargeResponse, type FailureKind } from "@/lib/sell/api";
+import { sellApi, type BusinessInfo, type ChargeResponse, type FailureKind, type LastSale } from "@/lib/sell/api";
+import { isCancelIntent } from "@/lib/sell/cancelIntent";
 import { confirmationText } from "@/lib/sell/confirmationText";
 import { messagesFor } from "@/lib/i18n";
 import { useLanguage } from "@/lib/i18n/useT";
@@ -25,6 +26,17 @@ export type Notice =
 
 export type QrStage = { sale: ChargeResponse; language: Language };
 
+/** "Cancel that sale": find today's last sale, confirm, then cancel it. */
+export type CancelStage =
+  | { step: "finding" }
+  | { step: "none" }
+  | { step: "confirm"; sale: LastSale }
+  | { step: "working"; sale: LastSale }
+  | { step: "done"; sale: LastSale; was: "awaiting" | "paid_cash" | "draft" }
+  /** Paid through PayPal: refunded from PayPal, not from here. */
+  | { step: "paypal"; sale: LastSale }
+  | { step: "failed"; sale: LastSale; reason: "changed" | "gone" | "paypal" | "network" };
+
 const noopSubscribe = () => () => {};
 
 export function useSellFlow() {
@@ -44,6 +56,7 @@ export function useSellFlow() {
   const [cashPending, setCashPending] = useState(false);
   const [cashError, setCashError] = useState<string | null>(null);
   const [paidCash, setPaidCash] = useState(false);
+  const [cancel, setCancel] = useState<CancelStage | null>(null);
 
   // One draftId per sale: every Charge retry of the same ticket reuses it, so
   // the server and PayPal dedupe. Editing the ticket after an attempt makes it
@@ -86,7 +99,26 @@ export function useSellFlow() {
     setTipState(next);
   };
 
+  const findLastSale = useCallback(async () => {
+    setCancel({ step: "finding" });
+    const result = await sellApi.lastSale();
+    if (!result.ok) return setCancel({ step: "none" });
+    const sale = result.data.sale;
+    if (!sale) return setCancel({ step: "none" });
+    setCancel(sale.status === "paid" ? { step: "paypal", sale } : { step: "confirm", sale });
+  }, []);
+
   const parse = useCallback(async (text: string, lang: Language) => {
+    if (isCancelIntent(text)) {
+      // A command, not an order: nothing is sent to the parser.
+      ++parseSeq.current;
+      setTranscript(text);
+      setNotice(null);
+      setRowsState([]);
+      void findLastSale();
+      return;
+    }
+    setCancel(null);
     const seq = ++parseSeq.current;
     lastParse.current = { transcript: text, language: lang };
     setTranscript(text);
@@ -111,7 +143,42 @@ export function useSellFlow() {
     attempted.current = false;
     setRowsState(toRows(result.data.items));
     setSaleLanguage(result.data.language);
-  }, []);
+  }, [findLastSale]);
+
+  const runCancel = async (sale: LastSale): Promise<boolean> => {
+    setCancel({ step: "working", sale });
+    const result = await sellApi.cancel(sale.saleId);
+    if (result.ok) {
+      setCancel({ step: "done", sale, was: result.was });
+      return true;
+    }
+    if (result.kind === "paid_paypal") setCancel({ step: "paypal", sale });
+    else if (result.kind === "changed" || result.kind === "already_cancelled") setCancel({ step: "failed", sale, reason: "changed" });
+    else if (result.kind === "not_found") setCancel({ step: "failed", sale, reason: "gone" });
+    else if (result.kind === "network") setCancel({ step: "failed", sale, reason: "network" });
+    else setCancel({ step: "failed", sale, reason: "paypal" });
+    return false;
+  };
+
+  const confirmCancel = () => {
+    if (cancel?.step === "confirm" || cancel?.step === "failed") void runCancel(cancel.sale);
+  };
+
+  /** From the QR screen: the customer walked away before paying. */
+  const cancelCurrent = async () => {
+    if (!qr) return;
+    const sale: LastSale = {
+      saleId: qr.sale.saleId,
+      invoiceNumber: null,
+      totalCents: qr.sale.totalCents,
+      status: "awaiting",
+      items: rows.map((r) => `${r.qty} ${r.name}`).join(", "),
+      createdAt: new Date().toISOString(),
+    };
+    // Start clean (the ticket is gone either way); the cancel card says what happened.
+    newSale();
+    await runCancel(sale);
+  };
 
   const pressStart = () => {
     handle.current?.stop();
@@ -213,6 +280,7 @@ export function useSellFlow() {
     setCashPending(false);
     setCashError(null);
     setPaidCash(false);
+    setCancel(null);
   };
 
   return {
@@ -241,5 +309,9 @@ export function useSellFlow() {
     payCash: () => void payCash(),
     announcePaid,
     newSale,
+    cancel,
+    confirmCancel,
+    cancelCurrent: () => void cancelCurrent(),
+    dismissCancel: () => setCancel(null),
   };
 }

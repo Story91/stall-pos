@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Nav } from "@/components/Nav";
+import { CancelCard } from "@/components/sell/CancelCard";
 import { LanguagePicker } from "@/components/sell/LanguagePicker";
 import { LineItemsEditor } from "@/components/sell/LineItemsEditor";
 import { MicButton } from "@/components/sell/MicButton";
@@ -42,10 +43,20 @@ export default function SellPage() {
             onCash={flow.payCash}
             onPaid={flow.announcePaid}
             onNewSale={flow.newSale}
+            onCancel={flow.cancelCurrent}
           />
         ) : (
           <>
-            {flow.parsing ? (
+            {flow.cancel ? (
+              <>
+                {flow.transcript && (
+                  <p className="text-lg text-graphite">
+                    {t.sell.heard} <q className="text-ink">{flow.transcript}</q>
+                  </p>
+                )}
+                <CancelCard stage={flow.cancel} onConfirm={flow.confirmCancel} onDismiss={flow.dismissCancel} />
+              </>
+            ) : flow.parsing ? (
               <TicketSkeleton transcript={flow.transcript} />
             ) : hasTicket ? (
               <>
@@ -83,6 +94,7 @@ export default function SellPage() {
                 <p className="max-w-xs text-xl text-graphite">
                   {t.sell.sayLike} <q className="text-ink">{t.sell.example}</q>
                 </p>
+                <p className="max-w-xs text-base text-graphite">{t.cancelSale.hint}</p>
               </div>
             )}
 
@@ -132,6 +144,7 @@ function PaymentStage({
   onCash(): void;
   onPaid(): void;
   onNewSale(): void;
+  onCancel(): void;
 }) {
   const { status } = useSaleStatus(stage.sale.saleId);
   return (

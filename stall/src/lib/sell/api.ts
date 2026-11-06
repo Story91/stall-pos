@@ -65,6 +65,36 @@ const json = (body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
+export type LastSale = {
+  saleId: string;
+  invoiceNumber: string | null;
+  totalCents: number;
+  status: "awaiting" | "paid" | "paid_cash";
+  items: string;
+  createdAt: string;
+};
+
+export type CancelResult =
+  | { ok: true; was: "awaiting" | "paid_cash" | "draft" }
+  | { ok: false; kind: FailureKind | "paid_paypal" | "already_cancelled" | "changed" | "not_found" };
+
+/** Cancel reads the reason from a 409/404 body, so the screen can say what to do. */
+async function cancelCall(saleId: string): Promise<CancelResult> {
+  let response: Response;
+  try {
+    response = await fetch(`/api/sales/${encodeURIComponent(saleId)}/cancel`, { method: "POST" });
+  } catch {
+    return { ok: false, kind: "network" };
+  }
+  const body = (await response.json().catch(() => null)) as { was?: string; error?: string } | null;
+  if (response.ok && body?.was) return { ok: true, was: body.was as "awaiting" | "paid_cash" | "draft" };
+  const reason = body?.error;
+  if (reason === "paid_paypal" || reason === "already_cancelled" || reason === "changed" || reason === "not_found") {
+    return { ok: false, kind: reason };
+  }
+  return { ok: false, kind: response.ok ? "server" : kindFor(response.status) };
+}
+
 export const sellApi = {
   business: () => call<BusinessInfo>("/api/business"),
   parse: (transcript: string, language: Language) =>
@@ -72,6 +102,8 @@ export const sellApi = {
   charge: (request: ChargeRequest) => call<ChargeResponse>("/api/sales", json(request)),
   cash: (saleId: string) =>
     call<{ status: string }>(`/api/sales/${encodeURIComponent(saleId)}/cash`, { method: "POST" }),
+  lastSale: () => call<{ sale: LastSale | null }>("/api/sales/last"),
+  cancel: cancelCall,
 };
 
 export type SellApi = typeof sellApi;

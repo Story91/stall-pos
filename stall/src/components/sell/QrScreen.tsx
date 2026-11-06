@@ -17,6 +17,8 @@ export type QrScreenProps = {
   /** Called once, when the sale first shows as paid (sound and vibration live here). */
   onPaid(): void;
   onNewSale(): void;
+  /** Cancel the unpaid invoice (the customer walked away). */
+  onCancel?(): void;
 };
 
 export function QrScreen(props: QrScreenProps) {
@@ -43,10 +45,12 @@ function WaitingView({
   cashError,
   onCash,
   onNewSale,
+  onCancel,
 }: QrScreenProps) {
   const t = useT();
   const [confirmingCash, setConfirmingCash] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const total = formatCents(totalCents);
   const cancelled = status === "cancelled";
 
@@ -128,6 +132,37 @@ function WaitingView({
           <p role="alert" className="rounded-xl bg-ink px-4 py-3 text-left text-lg text-paper">
             {cashError}
           </p>
+        )}
+        {onCancel && !cancelled && (
+          confirmingCancel ? (
+            <div className="flex flex-col gap-2 rounded-2xl bg-wash p-3">
+              <p className="text-lg font-medium">{t.qr.cancelQuestion(total)}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingCancel(false)}
+                  className="min-h-14 rounded-xl border-2 border-ink px-2 text-lg font-semibold"
+                >
+                  {t.cancelSale.keep}
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="min-h-14 rounded-xl bg-ink px-2 text-lg font-semibold text-paper"
+                >
+                  {t.cancelSale.yes}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingCancel(true)}
+              className="min-h-14 rounded-xl border-2 border-ink px-4 text-lg font-semibold"
+            >
+              {t.qr.cancelSale}
+            </button>
+          )
         )}
         <button
           type="button"

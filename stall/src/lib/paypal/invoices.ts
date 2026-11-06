@@ -208,3 +208,26 @@ export async function getInvoiceStatus(invoiceId: string): Promise<string> {
   );
   return invoice.status;
 }
+
+/**
+ * Cancels a sent, unpaid invoice so the customer can no longer pay it.
+ * PayPal refuses this once the invoice is paid.
+ */
+export async function cancelInvoice(invoiceId: string, requestId: string): Promise<void> {
+  await paypalFetch({
+    method: "POST",
+    path: `/v2/invoicing/invoices/${invoiceId}/cancel`,
+    body: { send_to_invoicer: false, send_to_recipient: false },
+    requestId,
+  });
+}
+
+/** Records a cash refund on an invoice that was paid in cash (no money moves through PayPal). */
+export async function recordCashRefund(invoiceId: string, cents: number, requestId: string): Promise<void> {
+  await paypalFetch({
+    method: "POST",
+    path: `/v2/invoicing/invoices/${invoiceId}/refunds`,
+    body: { method: "CASH", amount: usd(cents) },
+    requestId,
+  });
+}
