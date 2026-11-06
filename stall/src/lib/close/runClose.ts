@@ -6,6 +6,7 @@ import { getModel } from "@/lib/ai/model";
 import { closeMessages } from "@/lib/i18n/close";
 import type { Language } from "@/lib/parse/schema";
 import type { createPayout } from "@/lib/paypal/payouts";
+import type { InvoiceLookup } from "@/lib/paypal/toolkit";
 import {
   buildClosePrompt,
   createCloseTools,
@@ -26,6 +27,8 @@ export type RunCloseDeps = {
   createPayout: typeof createPayout;
   businessDailyCapCents?: number;
   now?: Date;
+  /** PayPal Agent Toolkit invoice lookup (read-only); omitted in tests and mock mode. */
+  invoices?: InvoiceLookup | null;
 };
 
 export type RunCloseResult = {
@@ -33,6 +36,8 @@ export type RunCloseResult = {
   paid: { obligationId: string; batchId: string }[];
   held: { decisionId: string }[];
   skipped: number;
+  /** Obligations the rules allowed but PayPal did not take; a rerun retries them. */
+  failed: { obligationId: string }[];
   /** What the model wrote with write_summary, shown to the owner as "Agent's note". Never the source of facts. */
   agentNote: string | null;
 };
@@ -58,7 +63,7 @@ export function deterministicSummary(
   const heldOutcomes = [...state.held.keys()].map((id) => state.outcomes.get(id)!);
   if (heldOutcomes.length > 0) {
     const names = heldOutcomes
-      .map((o) => `${label(o, o.obligation.amountCents)} (${state.held.get(o.obligation.id)!.reason})`)
+      .map((o) => `${label(o, o.obligation.amountCents)} (${state.held.get(o.obligation.id)!.reason.replace(/[.\s]+$/, "")})`)
       .join("; ");
     parts.push(m.needDecision(heldOutcomes.length, names));
   }
@@ -113,6 +118,7 @@ export async function runClose(
     held: new Map(),
     log: [],
     locks: new Map(),
+    invoices: deps.invoices ?? null,
   };
 
   const actionable = outcomes.filter((o) => o.verdict !== "skip");
@@ -126,6 +132,7 @@ export async function runClose(
           sales: data.sales,
           outcomes,
           language,
+          canCheckInvoices: Boolean(deps.invoices),
         }),
         prompt: "Close out the day now.",
         tools: createCloseTools(state),
@@ -159,6 +166,7 @@ export async function runClose(
     paid: [...state.paid.values()].map(({ obligationId, batchId }) => ({ obligationId, batchId })),
     held: [...state.held.values()].map(({ decisionId }) => ({ decisionId })),
     skipped,
+    failed: failed.map((o) => ({ obligationId: o.obligation.id })),
     agentNote,
   };
 

@@ -139,6 +139,8 @@ export type RunCloseResult = {
   paid: { obligationId: string; batchId: string }[];
   held: { decisionId: string }[];
   skipped: number;
+  /** Absent from older servers. */
+  failed?: { obligationId: string }[];
   agentNote: string | null;
 };
 

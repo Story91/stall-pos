@@ -30,6 +30,8 @@ Walk past any food truck or market stall and you see the same setup: a cash box,
 
 We wanted a tool for that owner, for both halves of the day: selling, and settling up afterwards. And we wanted it to work in whatever language the owner already speaks.
 
+The numbers back it up. New York City alone has about 23,000 street vendors, 96% of them immigrants and 55% with little or no English (Brooklyn Reader, on an Immigration Research Initiative report). Cash fell to 14% of US payments in 2024 (Federal Reserve Diary of Consumer Payment Choice), and 9.5% of Hispanic households have no bank account (FDIC 2023). Sources are linked in the README.
+
 ## What it does
 
 **Sell by talking.** The owner holds the mic and says the order in English, Spanish or Polish, for example "dos tacos al pastor y un agua fresca". Claude turns the transcript into line items using the business's own catalog and prices. The owner checks the ticket, adds a tip if any, and taps **Charge**.
@@ -91,7 +93,7 @@ The hard part of an agent that handles money is not the model, it is everything 
 1. Open https://stall-ashen.vercel.app and enter PIN `1234`.
 2. On **Sell**, type `two tacos al pastor and an agua fresca` (or hold the mic and say it), tap **Read order**, then **Charge**.
 3. Open the QR or the pay link and pay on PayPal's sandbox page with **Debit or Credit Card** (use a test card from the Credit Card Generator in your PayPal Developer Dashboard) or with any sandbox Personal account. Within a few seconds Sell shows **Paid**. To skip PayPal, tap **Paid in cash**.
-4. Open **Day**, then **Close the day**, then **Run close now**. Maria's $120 shift is paid through PayPal Payouts. The tortilla bill is held as a possible duplicate.
+4. Open **Today**, then **Close the day**, then **Run close now**. Maria's $120 shift is paid through PayPal Payouts. The tortilla bill is held as a possible duplicate.
 5. Tap **Mark as already paid**, then **Run close again**: nothing is paid twice.
 6. Open **History** and type `cash sales over $20 this week`: the AG Grid ledger filters itself and the totals row updates.
 

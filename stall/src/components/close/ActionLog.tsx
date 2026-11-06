@@ -4,11 +4,14 @@ import type { LogEntry } from "@/lib/owner/types";
 import { agentNote, nearDuplicate, plainText } from "@/lib/owner/text";
 import { useLanguage, useT } from "@/lib/i18n/useT";
 import { clockTime } from "@/lib/sell/format";
+import { errorKind } from "@/lib/owner/closeIssues";
 
 type Props = {
   log: LogEntry[];
   /** Payee name by obligation id, to say who each step was about. */
   names: Map<string, string>;
+  /** The business's timezone, so step times match the Day screen. */
+  tz?: string;
 };
 
 function field(value: unknown, key: string): unknown {
@@ -26,7 +29,7 @@ export function describeInput(entry: LogEntry, names: Map<string, string>): stri
 }
 
 /** The audit trail of the close, step by step: what each tool did and whether code allowed it. */
-export function ActionLog({ log, names }: Props) {
+export function ActionLog({ log, names, tz }: Props) {
   const t = useT();
   const language = useLanguage();
   const toolLabels: Record<string, string> = t.actionLog.tools;
@@ -47,7 +50,22 @@ export function ActionLog({ log, names }: Props) {
         const isSaid = entry.tool === "model_text";
         // The model's own words: recorded as input.text, or as the result for a plain text turn.
         const saidText = field(entry.input, "text") ?? (typeof entry.result === "string" ? entry.result : undefined);
-        const line = isNote ? "" : isSaid && typeof saidText === "string" ? plainText(saidText) : describeInput(entry, names);
+        const isAgentDown = entry.tool === "model_error";
+        // A raw error (from code, PayPal or the model API) is shown in plain words; the original stays under Details.
+        const raw = isAgentDown ? (typeof entry.result === "string" ? entry.result : "") : typeof error === "string" ? error : null;
+        const invoices = field(entry.result, "invoices");
+        const invoiceLine =
+          entry.tool === "check_unpaid_invoices" && ok === true && Array.isArray(invoices)
+            ? t.actionLog.unpaid(
+                invoices.length,
+                invoices.map((i) => String(field(i, "number") ?? "")).filter(Boolean).join(", "),
+              )
+            : null;
+        const line = invoiceLine ?? (isNote || isAgentDown
+          ? ""
+          : isSaid && typeof saidText === "string"
+            ? plainText(saidText)
+            : describeInput(entry, names));
         return (
           <li key={entry.step} className="relative flex gap-3 pb-4 pl-1 last:pb-0">
             <span aria-hidden className="absolute top-8 bottom-0 left-[1.15rem] w-0.5 bg-rule" />
@@ -65,13 +83,21 @@ export function ActionLog({ log, names }: Props) {
                 {ok === false && (
                   <span className="rounded-md bg-ink px-2 text-base font-bold text-marigold">{t.actionLog.refused}</span>
                 )}
-                <span className="ml-auto text-base font-normal text-graphite">{clockTime(entry.at, undefined, language)}</span>
+                <span className="ml-auto text-base font-normal text-graphite">{clockTime(entry.at, tz, language)}</span>
               </p>
               {line && (
                 <p className={`text-base text-graphite ${isSaid ? "whitespace-pre-line" : "truncate"}`}>{line}</p>
               )}
-              {ok === false && typeof error === "string" && (
-                <p className="text-base">{t.actionLog.codeSaid} {error}</p>
+              {raw !== null && (ok === false || isAgentDown) && (
+                <>
+                  <p className="text-base">{t.actionLog.errors[errorKind(raw, entry.tool)]}</p>
+                  {raw && (
+                    <details className="text-sm text-graphite">
+                      <summary className="cursor-pointer">{t.actionLog.details}</summary>
+                      <p className="break-words">{raw}</p>
+                    </details>
+                  )}
+                </>
               )}
             </div>
           </li>

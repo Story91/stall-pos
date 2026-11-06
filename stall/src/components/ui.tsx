@@ -4,10 +4,15 @@ import { Nav } from "@/components/Nav";
 import { useT } from "@/lib/i18n/useT";
 
 /** Shared page frame for the owner screens: leaves room for the fixed nav. */
-export function Screen({ children }: { children: React.ReactNode }) {
+export function Screen({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
+  // `wide` lets a data-heavy screen (the History grid) use a desktop's width; phones are unchanged.
   return (
     <>
-      <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 px-4 pb-32">{children}</main>
+      <main
+        className={`mx-auto flex min-h-dvh w-full max-w-md flex-col gap-6 px-4 pb-32 ${wide ? "md:max-w-5xl" : ""}`}
+      >
+        {children}
+      </main>
       <Nav />
     </>
   );

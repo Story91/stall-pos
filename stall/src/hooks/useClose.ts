@@ -17,7 +17,7 @@ import { speak } from "@/lib/voice/speak";
 /** Sandbox payouts settle in about 18 s; check every 5 s while any is still sending. */
 export const PAYOUT_POLL_MS = 5000;
 
-export type RunNotice = { kind: "nothing-new" } | { kind: "acted"; paid: number; held: number };
+export type RunNotice = { kind: "nothing-new" } | { kind: "acted"; paid: number; held: number; failed: number };
 
 export function useClose() {
   // The owner's language: sent with the close so the summary and reasons come back in it.
@@ -76,10 +76,11 @@ export function useClose() {
     const result = await ownerCall<RunCloseResult>("/api/close", send("POST", { date, language }));
     if (result.ok) {
       const { paid, held } = result.data;
+      const failed = result.data.failed?.length ?? 0;
       setRunNotice(
-        paid.length === 0 && held.length === 0
+        paid.length === 0 && held.length === 0 && failed === 0
           ? { kind: "nothing-new" }
-          : { kind: "acted", paid: paid.length, held: held.length },
+          : { kind: "acted", paid: paid.length, held: held.length, failed },
       );
     } else setRunError(failureText(result, language));
     await refresh(date);

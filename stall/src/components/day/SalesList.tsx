@@ -28,13 +28,16 @@ export function SalesList({ sales, tz }: { sales: SaleRow[]; tz?: string }) {
     <ul className="border-t-2 border-ink">
       {rows.map((sale) => {
         return (
-          <li key={sale.id} className="flex min-h-16 items-center gap-3 border-b border-rule py-2">
-            <span className="money w-16 shrink-0 text-lg text-graphite">{clockTime(sale.createdAt, tz, language)}</span>
-            <span className="min-w-0 flex-1 truncate text-lg">{itemsLine(sale)}</span>
-            <span className="money text-xl font-bold">{formatCents(sale.totalCents)}</span>
-            <span className={`w-24 shrink-0 rounded-full px-2 py-1 text-center text-base font-bold ${CHIP[sale.status]}`}>
-              {t.salesList.status[sale.status]}
-            </span>
+          <li key={sale.id} className="flex min-h-16 flex-col justify-center gap-0.5 border-b border-rule py-2">
+            {/* Time, amount and status on one line; the items get the full width below. */}
+            <div className="flex items-center gap-3">
+              <span className="money shrink-0 text-lg text-graphite">{clockTime(sale.createdAt, tz, language)}</span>
+              <span className="money ml-auto text-xl font-bold">{formatCents(sale.totalCents)}</span>
+              <span className={`w-24 shrink-0 rounded-full px-2 py-1 text-center text-base font-bold ${CHIP[sale.status]}`}>
+                {t.salesList.status[sale.status]}
+              </span>
+            </div>
+            <p className="line-clamp-2 text-lg">{itemsLine(sale)}</p>
           </li>
         );
       })}

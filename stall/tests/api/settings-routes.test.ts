@@ -12,6 +12,7 @@ vi.mock("@/db", () => ({
 import { GET as businessGet, PATCH as businessPatch } from "@/app/api/business/route";
 import { GET as catalogGet } from "@/app/api/catalog/route";
 import { GET as payeesGet } from "@/app/api/payees/route";
+import { PATCH as payeePatch } from "@/app/api/payees/[id]/route";
 import { POST as resetPost } from "@/app/api/reset-demo/route";
 import { ownerCookieValue } from "@/lib/auth";
 
@@ -89,5 +90,39 @@ describe("settings routes", () => {
     expect(await res.json()).toEqual({ ok: true });
     expect(await (await businessGet(req("GET", "/api/business"))).json()).toMatchObject({ name: "La Esquina", taxRate: 0.0825 });
     expect((await db.select().from(shifts)).length).toBe(before.length);
+  });
+});
+
+describe("PATCH /api/payees/[id]", () => {
+  const patch = (id: string, body: unknown, cookie: string | null = owner) =>
+    payeePatch(req("PATCH", `/api/payees/${id}`, body, cookie), { params: Promise.resolve({ id }) });
+  const byName = async (name: string) => {
+    const rows = (await (await payeesGet(req("GET", "/api/payees"))).json()) as { id: string; name: string }[];
+    return rows.find((r) => r.name === name)!.id;
+  };
+
+  it("changes a helper's day rate, limit and auto-pay, with the email still masked", async () => {
+    const maria = await byName("Maria");
+    const res = await patch(maria, { dailyRateCents: 13000, maxPerDayCents: 15000, autoPay: false });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      dailyRateCents: 13000,
+      maxPerDayCents: 15000,
+      autoPay: false,
+      email: "m••••@stall.example",
+    });
+  });
+
+  it("refuses a rate over the limit, a rate for a supplier, a cap over $1,000, strangers and unknown ids", async () => {
+    const maria = await byName("Maria");
+    const rosa = await byName("Tortillería Rosa");
+    expect(await (await patch(maria, { dailyRateCents: 20000 })).json()).toEqual({ error: "rate_over_limit" });
+    expect((await patch(rosa, { dailyRateCents: 5000 })).status).toBe(400);
+    expect((await patch(maria, { maxPerDayCents: 100_001 })).status).toBe(400);
+    expect((await patch(maria, { email: "x@y.z" })).status).toBe(400);
+    expect((await patch(maria, {})).status).toBe(400);
+    expect((await patch(maria, { autoPay: true }, null)).status).toBe(401);
+    expect((await patch("00000000-0000-4000-8000-000000000000", { autoPay: true })).status).toBe(404);
+    expect((await patch("not-a-uuid", { autoPay: true })).status).toBe(404);
   });
 });

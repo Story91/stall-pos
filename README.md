@@ -6,6 +6,14 @@ Built on **PayPal Invoicing, Payouts and Webhooks** (sandbox only), Claude via t
 
 Demo business: **La Esquina**, a taco truck in Austin, TX.
 
+## Why it matters
+
+- **The sellers:** New York City alone has about 23,000 street vendors; 96% are immigrants and 55% speak little or no English ([Brooklyn Reader, on an Immigration Research Initiative report](https://www.bkreader.com/business-innovation/almost-all-street-vendors-are-immigrants-facing-permit-issues-language-barriers-9536951)). Nationally, more than 1 in 5 immigrant entrepreneurs has limited English ([American Immigration Council](https://www.americanimmigrationcouncil.org/report/covid19-immigrant-entrepreneurs-languages/)).
+- **The buyers stopped carrying cash:** cash was 14% of US payments in 2024 ([Federal Reserve, 2025 Diary of Consumer Payment Choice](https://www.frbservices.org/news/research/2025-findings-from-the-diary-of-consumer-payment-choice)).
+- **Not everyone has a bank account:** 4.2% of US households are unbanked, 9.5% of Hispanic households ([FDIC 2023 survey](https://fdic.gov/household-survey/2023-fdic-national-survey-unbanked-and-underbanked-households-executive-summary)). A PayPal invoice can be paid with a card as a guest, and helpers are paid to a PayPal account, not a bank.
+
+Stall is for that owner: **sell and settle, face to face, in your language.** Voice-to-invoice tools exist; Stall also closes the day, paying the helper and the supplier inside hard limits and stopping on anything that looks wrong.
+
 ## 90-second judge path
 
 Hosted demo: **<https://stall-ashen.vercel.app>** (PayPal sandbox, no real money). Owner PIN: **`1234`**.
@@ -16,9 +24,10 @@ No login is needed to pay: PayPal's sandbox invoice page accepts **Debit or Cred
 2. Type the order in the text box, for example `two tacos al pastor and an agua fresca`, tap **Read order**, check the items, tap **Charge**.
 3. A PayPal invoice QR appears with "Waiting for payment". Scan it, or tap **Copy pay link** and open it in another browser, then pay with **Debit or Credit Card** (sandbox test card) or a sandbox PayPal account. Or tap **Paid in cash** to finish the sale without PayPal.
 4. As soon as PayPal reports the invoice paid, Sell flips to a full-screen **Paid**.
-5. Open **Day**. Today's sales, tax and tips are listed, and two obligations are already logged: Maria's shift and a tortillas bill.
+5. Open **Today**. Today's sales, tax and tips are listed, and two obligations are already logged: Maria's shift and a tortillas bill.
 6. Tap **Close the day** (you land on **Close**).
    - Maria's $120 shift is paid through PayPal Payouts, with a one-sentence reason.
+   - The **Money check with PayPal** card compares the day's ledger with PayPal's own transaction report. PayPal can take up to about 3 hours to list a new payment, so fresh items show as "not in PayPal's report yet" until they appear.
    - The tortillas bill is **held**: it looks like a bill paid two days ago. The decision card shows both bills.
 7. Tap **Mark as already paid** on the held bill (nothing is sent), then **Run close again**. Nothing is paid twice.
 8. Open **History** and type `cash sales over $20 this week` (or hold the mic and ask). Claude turns the question into a filter on the AG Grid ledger; the answer line and the totals row are computed by code from the rows shown.
@@ -97,7 +106,11 @@ Out of scope: card reader, receipt printing, inventory, tables, multi-location, 
 | Pay a logged shift or bill | `POST /v1/payments/payouts` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Payout batch status | `GET /v1/payments/payouts/{batch_id}` | [`payouts.ts`](stall/src/lib/paypal/payouts.ts) |
 | Signature check on every webhook | `POST /v1/notifications/verify-webhook-signature` | [`webhooks.ts`](stall/src/lib/paypal/webhooks.ts) |
+| **Money check:** the day's ledger (PayPal sales in, payouts out) matched item by item against what PayPal itself recorded; gaps are listed, outside activity is shown separately | `GET /v1/reporting/transactions` | [`reporting.ts`](stall/src/lib/paypal/reporting.ts), [`reconcile.ts`](stall/src/lib/close/reconcile.ts) |
+| Close agent checks which of today's invoices are still unpaid (read-only, **PayPal Agent Toolkit** `list_invoices`, adapted to AI SDK 7) | `GET /v2/invoicing/invoices` | [`toolkit.ts`](stall/src/lib/paypal/toolkit.ts), [`agent.ts`](stall/src/lib/close/agent.ts) |
 | Token cache, `PayPal-Request-Id` on every POST, zod-validated responses | `POST /v1/oauth2/token` | [`client.ts`](stall/src/lib/paypal/client.ts), [`schemas.ts`](stall/src/lib/paypal/schemas.ts) |
+
+The agent reads PayPal through the toolkit, but money only moves through Stall's own Payouts tool, behind limits enforced in code. The toolkit has no Payouts tool.
 
 **Sandbox facts we measured** (full notes: [`docs/superpowers/spike-findings.md`](docs/superpowers/spike-findings.md)):
 

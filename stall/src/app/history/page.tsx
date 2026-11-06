@@ -31,7 +31,7 @@ export default function HistoryPage() {
   const firstLoad = !h.data && !h.loadError;
 
   return (
-    <Screen>
+    <Screen wide>
       <ScreenHeader title={t.history.title} detail={detail} />
 
       <RangeChips value={h.range} onPick={h.pickRange} />

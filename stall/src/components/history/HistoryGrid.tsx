@@ -36,6 +36,9 @@ const GRID_LOCALES = { en: AG_GRID_LOCALE_EN, es: AG_GRID_LOCALE_ES, pl: AG_GRID
 >;
 
 /** The app's street-signage palette applied through the AG Grid Theming API: ink header, marigold accents. */
+/** Rows per page: one page fits a short scroll on a phone. */
+const PAGE_SIZE = 15;
+
 const stallTheme = themeQuartz.withParams({
   browserColorScheme: "light",
   fontFamily: "var(--font-barlow), system-ui, sans-serif",
@@ -203,10 +206,14 @@ function buildColumns(t: Messages, language: Language, tz: string | undefined): 
         }
         const top = row.kind === "payout" ? (row.who ?? t.payouts.unknownPayee) : row.items;
         const bottom = row.kind === "payout" ? row.items : row.invoiceNumber;
+        const sale = row.kind === "sale";
+        // On a phone a sale's items get both lines; its invoice number returns from `sm` up (and stays searchable).
         return (
           <div className="flex h-full min-w-0 flex-col justify-center leading-tight">
-            <span className="truncate font-semibold">{top}</span>
-            {bottom && <span className="truncate text-sm text-graphite">{bottom}</span>}
+            <span className={`font-semibold ${sale ? "line-clamp-2 whitespace-normal sm:truncate" : "truncate"}`}>{top}</span>
+            {bottom && (
+              <span className={`truncate text-sm text-graphite ${sale ? "hidden sm:block" : ""}`}>{bottom}</span>
+            )}
           </div>
         );
       },
@@ -385,7 +392,8 @@ export function HistoryGrid({ rows, tz, view, search, loading, fileName, onVisib
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="h-[62dvh] min-h-[26rem] w-full" role="region" aria-label={t.history.gridLabel}>
+      {/* The grid grows with its rows and pages instead of scrolling inside the scrolling page. */}
+      <div className="w-full" role="region" aria-label={t.history.gridLabel}>
         <AgGridReact<GridRow>
           // Remount on a language change: the grid reads localeText once.
           key={language}
@@ -399,6 +407,10 @@ export function HistoryGrid({ rows, tz, view, search, loading, fileName, onVisib
           isExternalFilterPresent={isExternalFilterPresent}
           doesExternalFilterPass={doesExternalFilterPass}
           loading={loading}
+          domLayout="autoHeight"
+          pagination
+          paginationPageSize={PAGE_SIZE}
+          paginationPageSizeSelector={false}
           tooltipShowDelay={300}
           animateRows
           suppressDragLeaveHidesColumns

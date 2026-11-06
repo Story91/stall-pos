@@ -29,7 +29,7 @@ export function Nav() {
               <Link
                 href={tab.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-16 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-sm leading-tight font-semibold ${
+                className={`flex min-h-16 flex-col items-center justify-center gap-0.5 px-0.5 text-center text-xs leading-tight min-[380px]:text-sm font-semibold ${
                   active ? "bg-marigold text-ink" : "text-graphite active:bg-wash"
                 }`}
               >

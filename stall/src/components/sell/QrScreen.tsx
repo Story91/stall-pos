@@ -146,7 +146,7 @@ function PaidView({ totalCents, status, onNewSale }: QrScreenProps) {
   return (
     <section
       aria-label={t.qr.paid}
-      className="paid-in fixed inset-0 z-10 flex flex-col items-center justify-center gap-6 bg-marigold px-6 pt-[env(safe-area-inset-top)] pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center"
+      className="paid-in fixed inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-marigold px-6 pt-[env(safe-area-inset-top)] pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center"
     >
       <svg aria-hidden viewBox="0 0 96 96" className="size-28">
         <circle cx="48" cy="48" r="44" fill="var(--color-ink)" />

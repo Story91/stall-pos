@@ -20,7 +20,7 @@ export const pl: Messages = {
   nav: {
     label: "Ekrany",
     sell: "Sprzedaż",
-    day: "Dzień",
+    day: "Dzisiaj",
     close: "Zamknięcie",
     history: "Historia",
     settings: "Ustawienia",
@@ -130,7 +130,8 @@ export const pl: Messages = {
   },
   totals: {
     label: "Dzisiejsze sumy",
-    tookIn: (n: number) => `Utarg: ${n} ${plPlural(n, "sprzedaż", "sprzedaże", "sprzedaży")}`,
+    tookIn: (n: number) =>
+      n === 0 ? "Jeszcze nic nie sprzedano" : `Utarg: ${n} ${plPlural(n, "sprzedaż", "sprzedaże", "sprzedaży")}`,
     beforeTax: "Bez podatku",
     tax: "Podatek",
     tips: "Napiwki",
@@ -148,8 +149,8 @@ export const pl: Messages = {
     },
   },
   payees: {
-    noHelpers: "Nie ma jeszcze pomocników. Ci, których dodasz w Ustawieniach, pojawią się tutaj.",
-    noRates: "Żaden pomocnik nie ma stawki dziennej. Ustaw ją w Ustawieniach, aby zapisywać tu zmiany.",
+    noHelpers: "Nie ma jeszcze pomocników. Dodaje się ich przy konfiguracji i pojawią się tutaj.",
+    noRates: "Żaden pomocnik nie ma stawki dziennej. Ustaw ją w Ustawieniach, w sekcji osób, aby zapisywać tu zmiany.",
     noRate: "Brak stawki",
     perDay: (amount: string) => `${amount} dziennie`,
   },
@@ -171,6 +172,7 @@ export const pl: Messages = {
   },
   payouts: {
     empty: "Brak wypłat w tym dniu.",
+    notSent: "Nie wysłano. Dotknij „Zamknij ponownie”, aby spróbować jeszcze raz.",
     unknownPayee: "Nieznany odbiorca",
     status: {
       PENDING: "Wysyłanie",
@@ -195,14 +197,43 @@ export const pl: Messages = {
     runAgain: "Zamknij ponownie",
     safe: "Można powtórzyć: nic nie zostanie wypłacone dwa razy.",
     nothingNew: "Nic nowego. Wszystko na dziś było już załatwione.",
-    acted: (paid: number, held: number) => `Wypłacono: ${paid}, czeka na ciebie: ${held}.`,
+    acted: (paid: number, held: number, failed = 0) =>
+      `Wypłacono: ${paid}, czeka na ciebie: ${held}.${failed > 0 ? ` Nie wysłano: ${failed}, spróbuj ponownie.` : ""}`,
     running: "Zamykam dzień. Agent sprawdza każdą zmianę i każdy rachunek względem twoich limitów.",
+  },
+  moneyCheck: {
+    title: "Uzgodnienie z PayPal",
+    intro: "Zapisy Stall z tego dnia porównane z raportem transakcji PayPal.",
+    checking: "Pytam PayPal…",
+    again: "Sprawdź ponownie",
+    moneyIn: "Wpływy",
+    moneyOut: "Wypłaty",
+    stall: "Stall",
+    paypal: "PayPal",
+    match: (n: number) =>
+      n === 0 ? "Nie ma czego sprawdzać: dziś brak sprzedaży i wypłat przez PayPal." : `Zgadza się z PayPal: znaleziono wszystkie (${n}).`,
+    waiting: (n: number) =>
+      `Jeszcze nie ma w raporcie PayPal: ${n}. Nowe płatności mogą pojawić się tam nawet po 3 godzinach; sprawdź później.`,
+    gaps: (n: number) => `W Stall, ale nie w raporcie PayPal: ${n}. Sprawdź je w PayPal:`,
+    sale: "Sprzedaż",
+    payout: "Wypłata",
+    other: (n: number) => `PayPal pokazuje też inne transakcje, których nie zrobił Stall: ${n}.`,
+    unavailable: "Nie udało się pobrać raportu PayPal. Nic nie zmieniono; spróbuj ponownie.",
+    asOf: (time: string) => `Stan na ${time}. Tylko odczyt: nic nie jest zmieniane.`,
   },
   actionLog: {
     empty: "W tym zamknięciu nic nie zapisano.",
+    details: "Szczegóły",
+    errors: {
+      ai: "Nie udało się połączyć z agentem AI, więc reguły same dokończyły dzień.",
+      network: "Brak połączenia z PayPal. Nic nie wysłano; uruchom zamknięcie ponownie.",
+      paypal: "PayPal nie przyjął tej wypłaty. Nic nie wysłano; uruchom zamknięcie ponownie.",
+      rules: "Twoje limity na to nie pozwalają, więc nic nie wypłacono.",
+      other: "Ten krok się nie udał. Nic nie zostało wypłacone dwa razy.",
+    },
     ok: "ok",
     refused: "odmowa",
-    codeSaid: "Kod odpowiedział:",
+    unpaid: (n: number, numbers: string) => (n === 0 ? "Wszystkie dzisiejsze faktury są opłacone." : `Nieopłacone: ${n} (${numbers})`),
     tools: {
       pay_obligation: "Wypłacono",
       hold_obligation: "Wstrzymano dla ciebie",
@@ -210,6 +241,7 @@ export const pl: Messages = {
       auto_pay: "Wypłacono według reguł",
       auto_hold: "Wstrzymano według reguł",
       model_text: "Agent napisał",
+      check_unpaid_invoices: "Sprawdził w PayPal nieopłacone faktury (Agent Toolkit)",
       model_error: "Agent niedostępny, reguły zamknęły dzień",
     },
   },
@@ -259,6 +291,7 @@ export const pl: Messages = {
     amountChanged: "Kwota zmieniła się od pokazania tej karty. Sprawdź nową kwotę i zatwierdź ponownie.",
     parseFailed: "Nie udało się tego odczytać. Spróbuj ponownie albo wypełnij formularz.",
     invalid: "Coś w formularzu jest nie tak. Sprawdź i spróbuj ponownie.",
+    rateOverLimit: "Stawka dzienna nie może być wyższa niż limit dzienny.",
   },
   history: {
     title: "Historia",
@@ -339,7 +372,8 @@ export const pl: Messages = {
     menu: "Menu",
     menuHint: "Stall uczy się nowych pozycji i cen z twojej sprzedaży.",
     payees: "Ludzie i dostawcy",
-    payeesHint: "Agent wypłaca im pieniądze przez PayPal przy zamknięciu, nigdy ponad dzienny limit.",
+    payeesHint:
+      "Agent płaci im przez PayPal przy zamknięciu, nigdy więcej niż limit dzienny. Dotknij Edytuj, aby zmienić stawkę, limit lub autopłatność.",
     export: "Eksport CSV",
     exportHint: "Opłacona sprzedaż, jeden wiersz na transakcję, dla księgowej albo do arkusza.",
     monthToDate: "Od początku miesiąca",
@@ -365,6 +399,14 @@ export const pl: Messages = {
       email: "E-mail PayPal",
       byBill: "Wg rachunku",
       asksYou: "Pyta ciebie",
+      edit: "Edytuj",
+      editTitle: (name: string) => `Edytuj: ${name}`,
+      save: "Zapisz",
+      cancel: "Anuluj",
+      saved: "Zapisano. Następne zamknięcie użyje tych limitów.",
+      maxHint: "Do $1,000.00 dziennie.",
+      autoPayHelp: "Wypłacaj przy zamknięciu bez pytania",
+      rateHint: "Zostaw puste, jeśli płacisz według rachunku.",
     },
   },
   businessForm: {
